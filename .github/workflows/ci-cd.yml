@@ -1,0 +1,53 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Test
+        run: python -m unittest discover -s tests -v
+
+      - name: Validate scaffold
+        run: |
+          test -f config.yaml
+          test -f scripts/apply_sql.py
+          test -f sql/versionamento.sql
+
+      - name: Validate SQL
+        run: |
+          find sql -type f -name '*.sql' | sort | grep -q .
+          grep -Eq '^[[:space:]]*-[[:space:]]+[A-Za-z0-9_.-]+\.sql$' config.yaml
+          if grep -RInE '\b(INSERT|UPDATE|DELETE|DROP DATABASE)\b' sql; then
+            echo "DML or forbidden statement found"
+            exit 1
+          fi
+          if ! grep -RInE 'IF NOT EXISTS|IF EXISTS' sql; then
+            echo "Missing idempotent guard"
+            exit 1
+          fi

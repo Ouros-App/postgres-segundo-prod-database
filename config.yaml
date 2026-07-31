@@ -1,0 +1,18 @@
+project: db-postgres
+database:
+  engine: postgresql # motor alvo do template
+  host: ${POSTGRES_HOST} # host do servidor
+  port: ${POSTGRES_PORT} # porta do servidor
+  name: ${POSTGRES_DB} # banco da aplicacao
+  bootstrap:
+    db: ${POSTGRES_ROOT_DB} # banco usado para conectar antes de criar o alvo
+    user: ${POSTGRES_ROOT_USER} # usuario bootstrap
+    password: ${POSTGRES_ROOT_PASSWORD} # senha bootstrap
+  owner:
+    user: ${POSTGRES_USER} # usuario principal do banco
+    password: ${POSTGRES_PASSWORD} # senha do usuario principal
+  sql_path: sql # pasta com os arquivos SQL
+  version_table: controle_versoes # tabela especial de versionamento
+  version_schema_file: versionamento.sql # SQL base da tabela de versionamento
+  execution_order: # ordem real de execucao dos arquivos SQL
+    - versionamento.sql
