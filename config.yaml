@@ -1,18 +1,17 @@
-project: db-postgres
+project: postgres-segundo-prod-database
 database:
-  engine: postgresql # motor alvo do template
-  host: ${POSTGRES_HOST} # host do servidor
-  port: ${POSTGRES_PORT} # porta do servidor
-  name: ${POSTGRES_DB} # banco da aplicacao
+  engine: postgresql
+  host: ${POSTGRES_HOST}
+  port: ${POSTGRES_PORT}
+  name: ${POSTGRES_DB}
   bootstrap:
-    db: ${POSTGRES_ROOT_DB} # banco usado para conectar antes de criar o alvo
-    user: ${POSTGRES_ROOT_USER} # usuario bootstrap
-    password: ${POSTGRES_ROOT_PASSWORD} # senha bootstrap
+    db: ${POSTGRES_ROOT_DB}
+    user: ${POSTGRES_ROOT_USER}
+    password: ${POSTGRES_ROOT_PASSWORD}
   owner:
-    user: ${POSTGRES_USER} # usuario principal do banco
-    password: ${POSTGRES_PASSWORD} # senha do usuario principal
-  sql_path: sql # pasta com os arquivos SQL
-  version_table: controle_versoes # tabela especial de versionamento
-  version_schema_file: versionamento.sql # SQL base da tabela de versionamento
-  execution_order: # ordem real de execucao dos arquivos SQL
-    - versionamento.sql
+    user: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+  sql_path: sql
+  version_table: controle_versoes
+  version_schema_file: versionamento.sql
+  execution_order: []
