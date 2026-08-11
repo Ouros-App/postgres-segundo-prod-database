@@ -2,6 +2,7 @@ name: CI/CD
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     branches:
       - main
   push:
@@ -17,7 +18,7 @@ jobs:
   conventional-commits:
     name: conventional-commits
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && (github.event.action != 'labeled' || github.event.label.name == 'rerun-ci')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,6 +34,7 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
+    if: github.event.action != 'labeled' || github.event.label.name == 'rerun-ci'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
