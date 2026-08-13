@@ -12,11 +12,12 @@ on:
 permissions:
   actions: read
   contents: read
+  checks: write
+  issues: write
   pull-requests: read
-
 jobs:
-  conventional-commits:
-    name: conventional-commits
+  conventional-commits-warning:
+    name: conventional-commits-warning
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && (github.event.action != 'labeled' || github.event.label.name == 'rerun-ci')
     steps:
@@ -25,11 +26,68 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate PR title
+      - name: Report conventional commit warning
+        uses: actions/github-script@v7
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_TITLE: ${{ github.event.pull_request.title }}
-        run: |
-          echo "$PR_TITLE" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|deps)(\([A-Za-z0-9_.-]+\))?(!)?: .+'
+        with:
+          script: |
+            const { execFileSync } = require("node:child_process");
+            const pattern = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|deps)(\([A-Za-z0-9_.-]+\))?(!)?: .+/;
+            const invalid = [];
+            if (!pattern.test(process.env.PR_TITLE)) invalid.push(`PR title: ${process.env.PR_TITLE}`);
+            const range = `${process.env.BASE_SHA}..${process.env.HEAD_SHA}`;
+            const subjects = execFileSync("git", ["log", "--no-merges", "--format=%s", range], { encoding: "utf8" })
+              .split(/\r?\n/).filter(Boolean);
+            for (const subject of subjects) {
+              if (!pattern.test(subject)) invalid.push(`Commit: ${subject}`);
+            }
+            const marker = "<!-- conventional-commits-warning -->";
+            const valid = invalid.length === 0;
+            const summary = valid
+              ? "PR title and commit messages follow Conventional Commits."
+              : `The PR remains mergeable, but these messages do not follow Conventional Commits:\n\n${invalid.map(item => `- ${item}`).join("\n")}`;
+            try {
+              await github.rest.checks.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: "conventional-commits",
+                head_sha: process.env.HEAD_SHA,
+                status: "completed",
+                conclusion: valid ? "success" : "neutral",
+                output: { title: valid ? "Conventional Commits" : "Conventional Commits warning", summary },
+              });
+            } catch (error) {
+              core.warning(`Could not publish the Conventional Commits check: ${error.message}`);
+            }
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                per_page: 100,
+              });
+              const existing = comments.find(comment => comment.user?.type === "Bot" && comment.body?.includes(marker));
+              if (invalid.length) {
+                const body = `${marker}\nâš ï¸ **Conventional Commits:** aviso nÃ£o bloqueante.\n\n${summary}\n\nO CI funcional continua sendo validado normalmente.`;
+                if (existing) {
+                  await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
+                } else {
+                  await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
+                }
+              } else if (existing) {
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existing.id,
+                  body: `${marker}\nâœ… **Conventional Commits:** aviso resolvido; o tÃ­tulo e os commits estÃ£o no padrÃ£o.`,
+                });
+              }
+            } catch (error) {
+              core.warning(`Could not publish the Conventional Commits comment: ${error.message}`);
+            }
 
   ci:
     name: ci
