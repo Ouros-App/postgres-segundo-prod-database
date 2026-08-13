@@ -1,1 +1,93 @@
-name: CI/CD`n`non:`n  workflow_dispatch:`n  pull_request:`n    types: [opened, synchronize, reopened, labeled]`n    branches:`n      - main`n  push:`n    branches:`n      - main`n`npermissions:`n  actions: read`n  contents: read`n  pull-requests: read`n`njobs:`n  conventional-commits-warning:`n    name: conventional-commits-warning`n    runs-on: ubuntu-latest`n    if: github.event_name == 'pull_request' && (github.event.action != 'labeled' || github.event.label.name == 'rerun-ci')`n    steps:`n      - name: Checkout`n        uses: actions/checkout@v4`n        with:`n          fetch-depth: 0`n`n      - name: Report conventional commit warning`n        uses: actions/github-script@v7`n        env:`n          BASE_SHA: ${{ github.event.pull_request.base.sha }}`n          HEAD_SHA: ${{ github.event.pull_request.head.sha }}`n          PR_TITLE: ${{ github.event.pull_request.title }}`n        with:`n          script: |`n            const { execFileSync } = require("node:child_process");`n            const pattern = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|deps)(\([A-Za-z0-9_.-]+\))?(!)?: .+/;`n            const invalid = [];`n            if (!pattern.test(process.env.PR_TITLE)) invalid.push(`PR title: ${process.env.PR_TITLE}`);`n            const subjects = execFileSync("git", ["log", "--no-merges", "--format=%s", `${process.env.BASE_SHA}..${process.env.HEAD_SHA}`], { encoding: "utf8" }).split(/\r?\n/).filter(Boolean);`n            for (const subject of subjects) if (!pattern.test(subject)) invalid.push(`Commit: ${subject}`);`n            const marker = "<!-- conventional-commits-warning -->";`n            const valid = invalid.length === 0;`n            const summary = valid ? "PR title and commit messages follow Conventional Commits." : `The PR remains mergeable, but these messages do not follow Conventional Commits:\n\n${invalid.map(item => `- ${item}`).join("\n")}`;`n            try { await github.rest.checks.create({ owner: context.repo.owner, repo: context.repo.repo, name: "conventional-commits", head_sha: process.env.HEAD_SHA, status: "completed", conclusion: valid ? "success" : "neutral", output: { title: valid ? "Conventional Commits" : "Conventional Commits warning", summary } }); } catch (error) { core.warning(`Could not publish the Conventional Commits check: ${error.message}`); }`n            try {`n              const comments = await github.paginate(github.rest.issues.listComments, { owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, per_page: 100 });`n              const existing = comments.find(comment => comment.user?.type === "Bot" && comment.body?.includes(marker));`n              if (invalid.length) { const body = `${marker}\nâš ï¸ **Conventional Commits:** aviso nÃ£o bloqueante.\n\n${summary}\n\nO CI funcional continua sendo validado normalmente.`; if (existing) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body }); else await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body }); }`n              else if (existing) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body: `${marker}\nâœ… **Conventional Commits:** aviso resolvido; o tÃ­tulo e os commits estÃ£o no padrÃ£o.` });`n            } catch (error) { core.warning(`Could not publish the Conventional Commits comment: ${error.message}`); }`n`n  ci:`n    name: ci`n    runs-on: ubuntu-latest`n    if: github.event.action != 'labeled' || github.event.label.name == 'rerun-ci'`n    steps:`n      - name: Checkout`n        uses: actions/checkout@v4`n`n      - name: Validate scaffold`n        run: |`n          test -f README.md`n          test -f config.yaml`n          test -f requirements.txt`n          test -f scripts/apply_sql.py`n          test -f sql/versionamento.sql`n`n  sql:`n    name: sql`n    runs-on: ubuntu-latest`n    needs: ci`n    steps:`n      - name: Checkout`n        uses: actions/checkout@v4`n`n      - name: Validate migration naming`n        run: |`n          find sql -type f -name '*.sql' | sort | grep -q .`n          if grep -E '^[[:space:]]*-[[:space:]]+file:' config.yaml | grep -Ev '^[[:space:]]*-[[:space:]]+file:[[:space:]]+[A-Za-z0-9_./-]+\.sql[[:space:]]*$' | grep -q .; then`n            echo "Invalid SQL file in execution_order"`n            exit 1`n          fi`n`n      - name: Block destructive SQL`n        run: |`n          if grep -RInEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA))\b' sql; then`n            echo "Destructive SQL is forbidden"`n            exit 1`n          fi
+name: CI/CD
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened, labeled]
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: read
+  checks: write
+  issues: write
+  pull-requests: read
+
+jobs:
+  conventional-commits-warning:
+    name: conventional-commits-warning
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && (github.event.action != 'labeled' || github.event.label.name == 'rerun-ci')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Report conventional commit warning
+        uses: actions/github-script@v7
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        with:
+          script: |
+            const { execFileSync } = require("node:child_process");
+            const pattern = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|deps)(\([A-Za-z0-9_.-]+\))?(!)?: .+/;
+            const invalid = [];
+            if (!pattern.test(process.env.PR_TITLE)) invalid.push(`PR title: ${process.env.PR_TITLE}`);
+            const subjects = execFileSync("git", ["log", "--no-merges", "--format=%s", `${process.env.BASE_SHA}..${process.env.HEAD_SHA}`], { encoding: "utf8" }).split(/\r?\n/).filter(Boolean);
+            for (const subject of subjects) if (!pattern.test(subject)) invalid.push(`Commit: ${subject}`);
+            const marker = "<!-- conventional-commits-warning -->";
+            const valid = invalid.length === 0;
+            const summary = valid ? "PR title and commit messages follow Conventional Commits." : `The PR remains mergeable, but these messages do not follow Conventional Commits:\n\n${invalid.map(item => `- ${item}`).join("\n")}`;
+            try { await github.rest.checks.create({ owner: context.repo.owner, repo: context.repo.repo, name: "conventional-commits", head_sha: process.env.HEAD_SHA, status: "completed", conclusion: valid ? "success" : "neutral", output: { title: valid ? "Conventional Commits" : "Conventional Commits warning", summary } }); } catch (error) { core.warning(`Could not publish the Conventional Commits check: ${error.message}`); }
+            try {
+              const comments = await github.paginate(github.rest.issues.listComments, { owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, per_page: 100 });
+              const existing = comments.find(comment => comment.user?.type === "Bot" && comment.body?.includes(marker));
+              if (invalid.length) { const body = `${marker}\n **Conventional Commits:** aviso no bloqueante.\n\n${summary}\n\nO CI funcional continua sendo validado normalmente.`; if (existing) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body }); else await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body }); }
+              else if (existing) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body: `${marker}\n **Conventional Commits:** aviso resolvido; o ttulo e os commits esto no padro.` });
+            } catch (error) { core.warning(`Could not publish the Conventional Commits comment: ${error.message}`); }
+
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    if: github.event.action != 'labeled' || github.event.label.name == 'rerun-ci'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate scaffold
+        run: |
+          test -f README.md
+          test -f config.yaml
+          test -f requirements.txt
+          test -f scripts/apply_sql.py
+          test -f sql/versionamento.sql
+
+  sql:
+    name: sql
+    runs-on: ubuntu-latest
+    needs: ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate migration naming
+        run: |
+          find sql -type f -name '*.sql' | sort | grep -q .
+          if grep -E '^[[:space:]]*-[[:space:]]+file:' config.yaml | grep -Ev '^[[:space:]]*-[[:space:]]+file:[[:space:]]+[A-Za-z0-9_./-]+\.sql[[:space:]]*$' | grep -q .; then
+            echo "Invalid SQL file in execution_order"
+            exit 1
+          fi
+
+      - name: Block destructive SQL
+        run: |
+          if grep -RInEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA))\b' sql; then
+            echo "Destructive SQL is forbidden"
+            exit 1
+          fi
