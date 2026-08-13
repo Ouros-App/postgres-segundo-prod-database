@@ -6,7 +6,8 @@ on:
     branches:
       - main
   push:
-    branches: ["**"]
+    branches:
+      - main
 permissions:
   actions: read
   contents: read
