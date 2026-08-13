@@ -44,7 +44,8 @@ jobs:
             if (!pattern.test(process.env.PR_TITLE)) invalid.push(`PR title: ${process.env.PR_TITLE}`);
             const range = `${process.env.BASE_SHA}..${process.env.HEAD_SHA}`;
             const subjects = execFileSync("git", ["log", "--no-merges", "--format=%s", range], { encoding: "utf8" })
-              .split(/\r?\n/).filter(Boolean);
+              .split(/\r?
+/).filter(Boolean);
             for (const subject of subjects) {
               if (!pattern.test(subject)) invalid.push(`Commit: ${subject}`);
             }
@@ -52,7 +53,10 @@ jobs:
             const valid = invalid.length === 0;
             const summary = valid
               ? "PR title and commit messages follow Conventional Commits."
-              : `The PR remains mergeable, but these messages do not follow Conventional Commits:\n\n${invalid.map(item => `- ${item}`).join("\n")}`;
+              : `The PR remains mergeable, but these messages do not follow Conventional Commits:
+
+${invalid.map(item => `- ${item}`).join("
+")}`;
             try {
               await github.rest.checks.create({
                 owner: context.repo.owner,
@@ -75,7 +79,12 @@ jobs:
               });
               const existing = comments.find(comment => comment.user?.type === "Bot" && comment.body?.includes(marker));
               if (invalid.length) {
-                const body = `${marker}\nâš ï¸ **Conventional Commits:** aviso nÃ£o bloqueante.\n\n${summary}\n\nO CI funcional continua sendo validado normalmente.`;
+                const body = `${marker}
+âš ï¸ **Conventional Commits:** aviso nÃ£o bloqueante.
+
+${summary}
+
+O CI funcional continua sendo validado normalmente.`;
                 if (existing) {
                   await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
                 } else {
@@ -86,7 +95,8 @@ jobs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   comment_id: existing.id,
-                  body: `${marker}\nâœ… **Conventional Commits:** aviso resolvido; o tÃ­tulo e os commits estÃ£o no padrÃ£o.`,
+                  body: `${marker}
+âœ… **Conventional Commits:** aviso resolvido; o tÃ­tulo e os commits estÃ£o no padrÃ£o.`,
                 });
               }
             } catch (error) {
@@ -96,7 +106,6 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
-    if: (github.event_name != 'pull_request' || github.event.action != 'labeled' || github.event.label.name == 'rerun-ci') && (github.event_name != 'push' || github.ref == 'refs/heads/main')
     if: (github.event_name != 'pull_request' || github.event.action != 'labeled' || github.event.label.name == 'rerun-ci') && (github.event_name != 'push' || github.ref == 'refs/heads/main')
     steps:
       - name: Checkout
