@@ -127,3 +127,4 @@ jobs:
             echo "Destructive SQL is forbidden"
             exit 1
           fi
+# PR workflow validation
