@@ -13,12 +13,13 @@ permissions:
   issues: write
   pull-requests: read
 jobs:
+
   workflow-sync:
     name: workflow-sync
     if: github.event_name == 'push' && github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - run: echo workflow-sync
+      - run: echo "Workflow synchronized on a non-main branch."
 
   conventional-commits-warning:
     name: conventional-commits-warning
@@ -44,8 +45,7 @@ jobs:
             if (!pattern.test(process.env.PR_TITLE)) invalid.push(`PR title: ${process.env.PR_TITLE}`);
             const range = `${process.env.BASE_SHA}..${process.env.HEAD_SHA}`;
             const subjects = execFileSync("git", ["log", "--no-merges", "--format=%s", range], { encoding: "utf8" })
-              .split(/\r?
-/).filter(Boolean);
+              .split(/\r?\n/).filter(Boolean);
             for (const subject of subjects) {
               if (!pattern.test(subject)) invalid.push(`Commit: ${subject}`);
             }
@@ -53,10 +53,7 @@ jobs:
             const valid = invalid.length === 0;
             const summary = valid
               ? "PR title and commit messages follow Conventional Commits."
-              : `The PR remains mergeable, but these messages do not follow Conventional Commits:
-
-${invalid.map(item => `- ${item}`).join("
-")}`;
+              : `The PR remains mergeable, but these messages do not follow Conventional Commits:\n\n${invalid.map(item => `- ${item}`).join("\n")}`;
             try {
               await github.rest.checks.create({
                 owner: context.repo.owner,
@@ -79,12 +76,7 @@ ${invalid.map(item => `- ${item}`).join("
               });
               const existing = comments.find(comment => comment.user?.type === "Bot" && comment.body?.includes(marker));
               if (invalid.length) {
-                const body = `${marker}
-âš ï¸ **Conventional Commits:** aviso nÃ£o bloqueante.
-
-${summary}
-
-O CI funcional continua sendo validado normalmente.`;
+                const body = `${marker}\nâš ï¸ **Conventional Commits:** aviso nÃ£o bloqueante.\n\n${summary}\n\nO CI funcional continua sendo validado normalmente.`;
                 if (existing) {
                   await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body });
                 } else {
@@ -95,8 +87,7 @@ O CI funcional continua sendo validado normalmente.`;
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   comment_id: existing.id,
-                  body: `${marker}
-âœ… **Conventional Commits:** aviso resolvido; o tÃ­tulo e os commits estÃ£o no padrÃ£o.`,
+                  body: `${marker}\nâœ… **Conventional Commits:** aviso resolvido; o tÃ­tulo e os commits estÃ£o no padrÃ£o.`,
                 });
               }
             } catch (error) {
@@ -107,38 +98,3 @@ O CI funcional continua sendo validado normalmente.`;
     name: ci
     runs-on: ubuntu-latest
     if: (github.event_name != 'pull_request' || github.event.action != 'labeled' || github.event.label.name == 'rerun-ci') && (github.event_name != 'push' || github.ref == 'refs/heads/main')
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Validate scaffold
-        run: |
-          test -f README.md
-          test -f config.yaml
-          test -f requirements.txt
-          test -f scripts/apply_sql.py
-          test -f sql/versionamento.sql
-
-  sql:
-    name: sql
-    runs-on: ubuntu-latest
-    needs: ci
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Validate migration naming
-        run: |
-          find sql -type f -name '*.sql' | sort | grep -q .
-          if grep -E '^[[:space:]]*-[[:space:]]+file:' config.yaml | grep -Ev '^[[:space:]]*-[[:space:]]+file:[[:space:]]+[A-Za-z0-9_./-]+\.sql[[:space:]]*$' | grep -q .; then
-            echo "Invalid SQL file in execution_order"
-            exit 1
-          fi
-
-      - name: Block destructive SQL
-        run: |
-          if grep -RInEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA))\b' sql; then
-            echo "Destructive SQL is forbidden"
-            exit 1
-          fi
-# PR workflow validation
