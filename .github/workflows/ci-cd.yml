@@ -48,8 +48,8 @@ jobs:
             try {
               const comments = await github.paginate(github.rest.issues.listComments, { owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, per_page: 100 });
               const existing = comments.find(comment => comment.user?.type === "Bot" && comment.body?.includes(marker));
-              if (invalid.length) { const body = `${marker}\nâš ï¸ **Conventional Commits:** aviso nÃ£o bloqueante.\n\n${summary}\n\nO CI funcional continua sendo validado normalmente.`; if (existing) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body }); else await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body }); }
-              else if (existing) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body: `${marker}\nâœ… **Conventional Commits:** aviso resolvido; o tÃ­tulo e os commits estÃ£o no padrÃ£o.` });
+              if (invalid.length) { const body = `${marker}\n **Conventional Commits:** aviso n\u00e3o bloqueante.\n\n${summary}\n\nO CI funcional continua sendo validado normalmente.`; if (existing) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body }); else await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body }); }
+              else if (existing) await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body: `${marker}\n **Conventional Commits:** aviso resolvido; o t\u00edtulo e os commits est\u00e3o no padr\u00e3o.` });
             } catch (error) { core.warning(`Could not publish the Conventional Commits comment: ${error.message}`); }
 
   ci:
