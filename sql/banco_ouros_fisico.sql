@@ -53,7 +53,6 @@ CREATE TABLE IF NOT EXISTS farm_owners (
     password VARCHAR(32) NOT NULL CHECK(length(password) > 0),
     email VARCHAR(32) NOT NULL CHECK(length(email) > 0),
     document_number VARCHAR UNIQUE,
-    zip_code VARCHAR(32) NOT NULL CHECK(length(zip_code) > 0),
     telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
     id_farm INTEGER REFERENCES farms(id) NOT NULL
 );
@@ -99,7 +98,6 @@ CREATE TABLE IF NOT EXISTS lots (
 CREATE TABLE IF NOT EXISTS company_employees (
     id SERIAL PRIMARY KEY,
     name VARCHAR(32) NOT NULL CHECK(length(name) > 0),
-    zip_code VARCHAR NOT NULL,
     document_number VARCHAR UNIQUE,
     email VARCHAR(32) NOT NULL CHECK(length(email) > 0),
     telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
