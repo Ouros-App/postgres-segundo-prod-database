@@ -1,5 +1,17 @@
 # postgres-segundo-prod-database
 
+<!-- REPO-METADATA:START -->
+<div align="center">
+
+[![Repo Size](https://img.shields.io/github/repo-size/Ouros-App/postgres-segundo-prod-database?style=flat-square&label=REPO%20SIZE)](https://github.com/Ouros-App/postgres-segundo-prod-database)
+[![Languages](https://img.shields.io/github/languages/count/Ouros-App/postgres-segundo-prod-database?style=flat-square&label=LANGUAGES)](https://github.com/Ouros-App/postgres-segundo-prod-database/languages)
+[![Forks](https://img.shields.io/github/forks/Ouros-App/postgres-segundo-prod-database?style=flat-square&label=FORKS)](https://github.com/Ouros-App/postgres-segundo-prod-database/network/members)
+[![Issues](https://img.shields.io/github/issues/Ouros-App/postgres-segundo-prod-database?style=flat-square&label=ISSUES)](https://github.com/Ouros-App/postgres-segundo-prod-database/issues)
+[![Pull Requests](https://img.shields.io/github/issues-pr/Ouros-App/postgres-segundo-prod-database?style=flat-square&label=PULL%20REQUESTS)](https://github.com/Ouros-App/postgres-segundo-prod-database/pulls)
+
+</div>
+<!-- REPO-METADATA:END -->
+
 Template para versionamento e aplicação de scripts SQL em PostgreSQL.
 
 ## Status e escopo
@@ -104,3 +116,13 @@ Ao alterar o esquema, atualize os arquivos SQL e a ordem em `config.yaml` quando
 ## Licença
 
 Este projeto está sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE).
+
+
+## Principais contribuidores
+
+<!-- CONTRIBUTORS:START -->
+- [@Nicolas25vlad](https://github.com/Nicolas25vlad) — 5 contribuições
+- [@LucasRamosDeCarvalho](https://github.com/LucasRamosDeCarvalho) — 2 contribuições
+<!-- CONTRIBUTORS:END -->
+
+> Atualizado automaticamente semanalmente pelo workflow de metadados do README.
