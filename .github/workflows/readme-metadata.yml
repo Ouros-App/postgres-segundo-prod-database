@@ -1,0 +1,104 @@
+name: Atualizar metadados do README
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Atualizar contribuidores
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          token = os.environ["GH_TOKEN"]
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repo}/contributors?per_page=10",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              data = json.load(response)
+
+          excluded = {"ourosapp", "ouros-app", "ouros"}
+          contributors = [
+              item for item in data
+              if item.get("type") == "User"
+              and item.get("login")
+              and item["login"].casefold() not in excluded
+          ][:5]
+
+          lines = []
+          if contributors:
+              for item in contributors:
+                  login = item["login"]
+                  count = item.get("contributions", 0)
+                  lines.append(
+                      f"- [@{login}](https://github.com/{login}) — {count} contribuições"
+                  )
+          else:
+              lines.append("- Nenhum contribuidor individual identificado ainda.")
+
+          readme_path = Path("README.md")
+          content = readme_path.read_text(encoding="utf-8")
+          start = "<!-- CONTRIBUTORS:START -->"
+          end = "<!-- CONTRIBUTORS:END -->"
+          if start not in content or end not in content:
+              raise SystemExit("Marcadores de contribuidores não encontrados no README.md")
+
+          start_index = content.index(start) + len(start)
+          end_index = content.index(end, start_index)
+          replacement = "\n" + "\n".join(lines) + "\n"
+          readme_path.write_text(
+              content[:start_index] + replacement + content[end_index:],
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Abrir PR de atualização
+        env:
+          GH_TOKEN: \${{ github.token }}
+          UPDATE_BRANCH: automation/readme-metadata
+        run: |
+          if git diff --quiet -- README.md; then
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin "$UPDATE_BRANCH:$UPDATE_BRANCH" 2>/dev/null || true
+          git switch -C "$UPDATE_BRANCH"
+          git add README.md
+          git commit -m "docs: atualiza metadados do README"
+          git push --force-with-lease origin "$UPDATE_BRANCH"
+
+          base_branch="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)"
+          open_prs="$(gh pr list --head "$UPDATE_BRANCH" --state open --json number --jq 'length')"
+          if [ "$open_prs" = "0" ]; then
+            gh pr create \
+              --base "$base_branch" \
+              --head "$UPDATE_BRANCH" \
+              --title "docs: atualiza metadados do README" \
+              --body "Atualização automática dos contribuidores principais do repositório."
+          else
+            gh pr ready "$UPDATE_BRANCH" || true
+          fi
