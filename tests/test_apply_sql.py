@@ -68,6 +68,25 @@ class ApplySqlTest(unittest.TestCase):
         entries = sql_entries(root, cfg)
         self.assertEqual([(path.name, mode) for path, mode in entries], [("banco_ouros_fisico.sql", "on_change")])
 
+    def test_empty_execution_order_is_rejected(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        os.environ.update(
+            {
+                "POSTGRES_HOST": "localhost",
+                "POSTGRES_PORT": "5432",
+                "POSTGRES_DB": "app",
+                "POSTGRES_ROOT_DB": "root_db",
+                "POSTGRES_ROOT_USER": "ouros_root",
+                "POSTGRES_ROOT_PASSWORD": "root",
+                "POSTGRES_USER": "app",
+                "POSTGRES_PASSWORD": "app",
+            }
+        )
+        cfg = load_config(root)
+        cfg["database"]["execution_order"] = []
+        with self.assertRaisesRegex(RuntimeError, "Nenhum script SQL"):
+            sql_entries(root, cfg)
+
 
 if __name__ == "__main__":
     unittest.main()
