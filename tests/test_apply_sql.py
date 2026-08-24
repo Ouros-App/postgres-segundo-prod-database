@@ -93,6 +93,6 @@ class ApplySqlTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "Nenhum script SQL"):
             sql_entries(root, cfg)
 
-    
+
 if __name__ == "__main__":
     unittest.main()
