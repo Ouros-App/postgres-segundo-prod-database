@@ -66,7 +66,13 @@ class ApplySqlTest(unittest.TestCase):
         )
         cfg = load_config(root)
         entries = sql_entries(root, cfg)
-        self.assertEqual([(path.name, mode) for path, mode in entries], [("banco_ouros_fisico.sql", "on_change")])
+        self.assertEqual(
+            [(path.name, mode) for path, mode in entries],
+            [
+                ("banco_ouros_fisico.sql", "on_change"),
+                ("atualiza_password.sql", "once"),
+            ],
+        )
 
     def test_empty_execution_order_is_rejected(self) -> None:
         root = Path(__file__).resolve().parents[1]

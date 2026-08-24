@@ -1,0 +1,8 @@
+ALTER TABLE farm_owners
+ALTER COLUMN password TYPE TEXT;
+
+ALTER TABLE company_employees
+ALTER COLUMN password TYPE TEXT;
+
+ALTER TABLE adms
+ALTER COLUMN password TYPE TEXT;
