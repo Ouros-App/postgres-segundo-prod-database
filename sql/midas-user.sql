@@ -19,12 +19,14 @@ END
 $$;
 
 ALTER ROLE midas_ro
+    LOGIN
     NOINHERIT
     NOSUPERUSER
     NOCREATEDB
     NOCREATEROLE
     NOREPLICATION
-    NOBYPASSRLS;
+    NOBYPASSRLS
+    CONNECTION LIMIT 5;
 
 ALTER ROLE midas_ro SET default_transaction_read_only = on;
 ALTER ROLE midas_ro SET search_path = midas, pg_catalog;
