@@ -16,7 +16,6 @@ database:
   version_schema_file: versionamento.sql
   # Adicione os arquivos na ordem em que devem ser executados.
   # mode: once | on_change | always | never
-  execution_order: [banco_ouros_fisico.sql]
-  # Exemplo:
-  # - file: banco_ouros_fisico.sql
-  #   mode: once
+  execution_order:
+    - file: banco_ouros_fisico.sql
+      mode: on_change

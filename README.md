@@ -16,9 +16,9 @@ Template para versionamento e aplicação de scripts SQL em PostgreSQL.
 
 ## Status e escopo
 
-O repositório contém um executor local de SQL, arquivos SQL de versionamento e um esquema físico de banco. A configuração atual deixa `database.execution_order` vazia; portanto, o arquivo `sql/banco_ouros_fisico.sql` existe no repositório, mas não está incluído na ordem de execução até ser adicionado ao `config.yaml`.
+O repositório contém um executor local de SQL, arquivos SQL de versionamento e um esquema físico de banco. A configuração executa `sql/banco_ouros_fisico.sql` em modo `on_change`, depois de garantir o usuário proprietário e o banco lógico configurado.
 
-A aplicação automática está definida em `.github/workflows/apply-sql-on-main.yml` e é disparada por push em `main`.
+A aplicação automática está definida em `.github/workflows/apply-sql-on-main.yml` e é disparada por push em `main` ou manualmente pelo GitHub Actions. O repositório não provisiona a instância/servidor PostgreSQL nem o `POSTGRES_ROOT_DB`; esses recursos precisam existir e estar acessíveis pelas credenciais configuradas.
 
 ## Componentes
 
@@ -68,7 +68,7 @@ A configuração usa essas variáveis em `config.yaml`. Para executar um SQL adi
 ```yaml
 execution_order:
   - file: banco_ouros_fisico.sql
-    mode: once
+    mode: on_change
 ```
 
 Os modos aceitos pelo executor são `once`, `on_change`, `always` e `never`.
