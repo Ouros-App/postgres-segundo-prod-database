@@ -66,7 +66,13 @@ class ApplySqlTest(unittest.TestCase):
         )
         cfg = load_config(root)
         entries = sql_entries(root, cfg)
-        self.assertEqual([(path.name, mode) for path, mode in entries], [("banco_ouros_fisico.sql", "on_change")])
+        self.assertEqual(
+            [(path.name, mode) for path, mode in entries],
+            [
+                ("banco_ouros_fisico.sql", "on_change"),
+                ("atualiza_password.sql", "once"),
+            ],
+        )
 
     def test_empty_execution_order_is_rejected(self) -> None:
         root = Path(__file__).resolve().parents[1]
@@ -76,8 +82,6 @@ class ApplySqlTest(unittest.TestCase):
                 "POSTGRES_PORT": "5432",
                 "POSTGRES_DB": "app",
                 "POSTGRES_ROOT_DB": "root_db",
-                "POSTGRES_ROOT_USER": "ouros_root",
-                "POSTGRES_ROOT_PASSWORD": "root",
                 "POSTGRES_USER": "app",
                 "POSTGRES_PASSWORD": "app",
             }
