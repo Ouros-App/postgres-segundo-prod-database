@@ -19,3 +19,5 @@ database:
   execution_order:
     - file: banco_ouros_fisico.sql
       mode: on_change
+    - file: dataload_inicial.sql
+      mode: once
