@@ -19,11 +19,13 @@ def qident(name: str) -> str:
 
 def load_config(root: Path) -> dict:
     raw = (root / "config.yaml").read_text(encoding="utf-8")
+
     def replace(match):
         value = os.getenv(match.group(1))
-        if value is None:
+        if value is None or not value.strip():
             raise RuntimeError(f"Variavel de ambiente obrigatoria ausente: {match.group(1)}")
         return value
+
     def expand(value):
         if isinstance(value, str):
             return ENV_RE.sub(replace, value)
@@ -32,6 +34,7 @@ def load_config(root: Path) -> dict:
         if isinstance(value, dict):
             return {key: expand(item) for key, item in value.items()}
         return value
+
     return expand(yaml.safe_load(raw))
 
 
@@ -56,9 +59,16 @@ def ensure_database(cfg: dict) -> None:
             cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (owner["user"],))
             if cur.fetchone() is None:
                 cur.execute(f"CREATE ROLE {qident(owner['user'])} LOGIN PASSWORD %s", (owner["password"],))
+                print("[CREATE] usuario proprietário")
+            else:
+                print("[SKIP] usuario proprietário: já existe")
+
             cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db["name"],))
             if cur.fetchone() is None:
                 cur.execute(f"CREATE DATABASE {qident(db['name'])} OWNER {qident(owner['user'])}")
+                print("[CREATE] banco de dados")
+            else:
+                print("[SKIP] banco de dados: já existe")
     finally:
         conn.close()
 
@@ -74,9 +84,18 @@ def ensure_version_table(cur, root: Path, cfg: dict) -> None:
 def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str]]:
     db = cfg["database"]
     sql_dir = root / db["sql_path"]
+    if not db["execution_order"]:
+        raise RuntimeError("Nenhum script SQL foi configurado em database.execution_order.")
+
     entries, seen = [], set()
     for item in db["execution_order"]:
-        name, mode = (item, "on_change") if isinstance(item, str) else (item.get("file"), item.get("mode", "on_change")) if isinstance(item, dict) else (None, None)
+        name, mode = (
+            (item, "on_change")
+            if isinstance(item, str)
+            else (item.get("file"), item.get("mode", "on_change"))
+            if isinstance(item, dict)
+            else (None, None)
+        )
         if not isinstance(name, str) or not name or mode not in {"always", "on_change", "once", "never"}:
             raise ValueError("Cada script exige file e mode valido (always, on_change, once ou never).")
         path = Path(name)
