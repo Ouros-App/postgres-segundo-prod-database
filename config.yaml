@@ -21,3 +21,7 @@ database:
       mode: on_change
     - file: dataload_inicial.sql
       mode: once
+    - file: atualiza_password.sql
+      mode: once
+    - file: midas-user.sql
+      mode: on_change
