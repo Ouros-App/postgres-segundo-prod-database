@@ -409,13 +409,6 @@ INSERT INTO company_employees (name, document_number, email, telephone, password
 INSERT INTO company_employees (name, document_number, email, telephone, password, id_enterprise) VALUES ('Sofia Cardoso', '20000000019', 'sofia.cardoso@integrado.teste.local', '1170000000019', md5('colaborador-integrado-19'), (SELECT id FROM enterprises WHERE email = 'vitor.herrmann@agrosul.com.br' ORDER BY id DESC LIMIT 1));
 INSERT INTO company_employees (name, document_number, email, telephone, password, id_enterprise) VALUES ('Gabriel Rezende', '20000000020', 'gabriel.rezende@integrado.teste.local', '1170000000020', md5('colaborador-integrado-20'), (SELECT id FROM enterprises WHERE email = 'wilson.bispo@costafoodsbrasil.com' ORDER BY id DESC LIMIT 1));
 
--- 5 adms
-INSERT INTO adms (email, password) VALUES ('admin1.carga500@teste.local', md5('admin-carga500-1'));
-INSERT INTO adms (email, password) VALUES ('admin2.carga500@teste.local', md5('admin-carga500-2'));
-INSERT INTO adms (email, password) VALUES ('admin3.carga500@teste.local', md5('admin-carga500-3'));
-INSERT INTO adms (email, password) VALUES ('admin4.carga500@teste.local', md5('admin-carga500-4'));
-INSERT INTO adms (email, password) VALUES ('admin5.carga500@teste.local', md5('admin-carga500-5'));
-
 -- 25 state_goals
 INSERT INTO state_goals (description, type, status, target_value, title, date_creation, date_end, id_farm) VALUES ('Reduzir em 10% o consumo de água por ave entregue no estado.', 'Água', 'Em andamento', 10, 'Reduzir intensidade hídrica estadual', CURRENT_TIMESTAMP - INTERVAL '1 days', CURRENT_TIMESTAMP + INTERVAL '31 days', (SELECT id FROM farms WHERE name = 'Granja Poedeira - Itapetininga' ORDER BY id DESC LIMIT 1));
 INSERT INTO state_goals (description, type, status, target_value, title, date_creation, date_end, id_farm) VALUES ('Garantir registros de água em 95% das fazendas ativas.', 'Dados', 'Em andamento', 95, 'Aumentar cobertura de registros de água', CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP + INTERVAL '32 days', (SELECT id FROM farms WHERE name = 'Granja de Aves com 6 Alqueires - Amparo' ORDER BY id DESC LIMIT 1));
