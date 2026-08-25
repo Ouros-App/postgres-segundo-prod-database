@@ -22,4 +22,4 @@ database:
     - file: atualiza_password.sql
       mode: once
     - file: midas-user.sql
-      mode: once
+      mode: on_change
