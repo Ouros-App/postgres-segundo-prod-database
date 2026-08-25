@@ -71,6 +71,7 @@ class ApplySqlTest(unittest.TestCase):
             [
                 ("banco_ouros_fisico.sql", "on_change"),
                 ("atualiza_password.sql", "once"),
+                ("midas-user.sql", "once"),
             ],
         )
 
