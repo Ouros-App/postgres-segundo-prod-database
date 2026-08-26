@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS reviews (
 CREATE TABLE IF NOT EXISTS farm_owners (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL CHECK(length(name) > 0),
-    password VARCHAR(40) NOT NULL CHECK(length(password) > 0),
+    password TEXT NOT NULL CHECK(length(password) > 0),
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
     document_number VARCHAR(11) NOT NULL CHECK (length(document_number) = 11),
     telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
@@ -101,14 +101,14 @@ CREATE TABLE IF NOT EXISTS company_employees (
     document_number VARCHAR(11) UNIQUE NOT NULL CHECK (length(document_number) = 11),
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
     telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
-    password VARCHAR(40) NOT NULL CHECK(length(password) > 0),
+    password TEXT NOT NULL CHECK(length(password) > 0),
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS adms (
     id SERIAL PRIMARY KEY,
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
-    password VARCHAR(40) NOT NULL CHECK(length(password) > 0)
+    password TEXT NOT NULL CHECK(length(password) > 0)
 );
 
 CREATE TABLE IF NOT EXISTS state_goals (
