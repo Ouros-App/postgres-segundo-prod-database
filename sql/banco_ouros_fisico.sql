@@ -157,3 +157,30 @@ CREATE TABLE IF NOT EXISTS farms_tips (
     id_tip INTEGER NOT NULL REFERENCES tips(id),
     UNIQUE (id_farm, id_tip)
 );
+
+CREATE TABLE IF NOT EXISTS plans (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(100) NOT NULL UNIQUE CHECK (btrim(title) <> ''),
+    duration_days INTEGER NOT NULL CHECK (duration_days > 0),
+    description TEXT NOT NULL CHECK (btrim(description) <> ''),
+    price NUMERIC(10,2) NOT NULL CHECK (price > 0)
+);
+
+CREATE TABLE IF NOT EXISTS enterprise_plans (
+    id SERIAL PRIMARY KEY,
+    id_enterprise INTEGER NOT NULL REFERENCES enterprises(id) ON DELETE CASCADE,
+    id_plan INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+    UNIQUE (id_enterprise, id_plan),
+    UNIQUE (id, id_enterprise)
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+    id SERIAL PRIMARY KEY,
+    type VARCHAR(50) NOT NULL CHECK (btrim(type) <> ''),
+    value NUMERIC(10,2) NOT NULL CHECK (value > 0),
+    date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id_enterprise INTEGER NOT NULL,
+    id_enterprise_plan INTEGER NOT NULL,
+    FOREIGN KEY (id_enterprise_plan, id_enterprise)
+        REFERENCES enterprise_plans(id, id_enterprise)
+);
