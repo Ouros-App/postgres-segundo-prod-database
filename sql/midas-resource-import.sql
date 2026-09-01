@@ -22,17 +22,17 @@ CREATE TABLE IF NOT EXISTS midas.resource_import_requests (
     completed_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS water_registries_import_natural_key
-    ON public.water_registries (id_farm, registration_date, start_hydrometer, end_hydrometer);
-CREATE UNIQUE INDEX IF NOT EXISTS energy_registries_import_natural_key
-    ON public.energy_registries (id_farm, registration_date, energy_consumption);
-
 DO $$ BEGIN
     IF EXISTS (SELECT 1 FROM public.water_registries GROUP BY id_farm, registration_date, start_hydrometer, end_hydrometer HAVING count(*) > 1)
        OR EXISTS (SELECT 1 FROM public.energy_registries GROUP BY id_farm, registration_date, energy_consumption HAVING count(*) > 1) THEN
         RAISE EXCEPTION 'duplicate legacy resource records require DBA review';
     END IF;
 END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS water_registries_import_natural_key
+    ON public.water_registries (id_farm, registration_date, start_hydrometer, end_hydrometer);
+CREATE UNIQUE INDEX IF NOT EXISTS energy_registries_import_natural_key
+    ON public.energy_registries (id_farm, registration_date, energy_consumption);
 
 CREATE OR REPLACE FUNCTION midas.import_resource_records(
     p_request_id UUID, p_actor_user_type TEXT, p_actor_user_id BIGINT,
