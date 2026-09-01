@@ -2,6 +2,12 @@
 -- Unidades: agua em m3 (leituras cumulativas); energia em kWh; data sem fuso.
 
 CREATE SCHEMA IF NOT EXISTS midas;
+DO $$ DECLARE v_schema TEXT; BEGIN
+    SELECT n.nspname INTO v_schema FROM pg_extension e JOIN pg_namespace n ON n.oid = e.extnamespace WHERE e.extname = 'pgcrypto';
+    IF v_schema IS NOT NULL AND v_schema <> 'midas' THEN
+        RAISE EXCEPTION 'pgcrypto is installed in schema %, move it to midas before this migration', v_schema;
+    END IF;
+END $$;
 CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA midas;
 
 CREATE TABLE IF NOT EXISTS midas.resource_import_requests (
@@ -20,6 +26,11 @@ CREATE TABLE IF NOT EXISTS midas.resource_import_requests (
     schema_version TEXT NOT NULL DEFAULT 'resource-import-v1',
     created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     completed_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+);
+CREATE TABLE IF NOT EXISTS midas.importer_identities (
+    database_role NAME PRIMARY KEY,
+    farm_owner_id BIGINT NOT NULL REFERENCES public.farm_owners(id),
+    CHECK (database_role <> 'public'::NAME)
 );
 
 DO $$ BEGIN
@@ -74,7 +85,7 @@ BEGIN
       INTO v_existing FROM midas.resource_import_requests r WHERE r.request_id = p_request_id;
     IF v_existing IS NOT NULL THEN RETURN v_existing; END IF;
 
-    p_actor_user_id := NULLIF(current_setting('midas.actor_user_id', true), '')::BIGINT;
+    SELECT farm_owner_id INTO p_actor_user_id FROM midas.importer_identities WHERE database_role = session_user;
     IF p_actor_user_id IS NULL THEN RAISE EXCEPTION 'authenticated actor is required'; END IF;
     SELECT id_farm INTO v_farm_id FROM public.farm_owners WHERE id = p_actor_user_id FOR SHARE;
     IF v_farm_id IS NULL THEN RAISE EXCEPTION 'farm owner not found'; END IF;
@@ -89,30 +100,30 @@ BEGIN
                OR (v_item - 'resource_type' - 'farm_id' - 'registration_date' - 'start_hydrometer'
                    - 'end_hydrometer' - 'energy_consumption' - 'source_row' - 'confidence') <> '{}'::JSONB
                OR (v_item->>'farm_id')::INTEGER IS DISTINCT FROM v_farm_id THEN
-                RAISE EXCEPTION 'INVALID_VALUE';
+                RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'INVALID_VALUE';
             END IF;
             v_date := (v_item->>'registration_date')::DATE;
             IF v_resource = 'water' THEN
                 v_start := (v_item->>'start_hydrometer')::NUMERIC;
                 v_end := (v_item->>'end_hydrometer')::NUMERIC;
-                IF v_start <= 0 OR v_end <= 0 OR v_end < v_start THEN RAISE EXCEPTION 'INVALID_VALUE'; END IF;
+                IF v_start <= 0 OR v_end <= 0 OR v_end < v_start THEN RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'INVALID_VALUE'; END IF;
                 INSERT INTO public.water_registries (registration_date, start_hydrometer, end_hydrometer, id_farm)
                 VALUES (v_date, v_start, v_end, v_farm_id) ON CONFLICT DO NOTHING;
             ELSE
                 v_energy := (v_item->>'energy_consumption')::NUMERIC;
-                IF v_energy <= 0 THEN RAISE EXCEPTION 'INVALID_VALUE'; END IF;
+                IF v_energy <= 0 THEN RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'INVALID_VALUE'; END IF;
                 INSERT INTO public.energy_registries (registration_date, energy_consumption, id_farm)
                 VALUES (v_date, v_energy, v_farm_id) ON CONFLICT DO NOTHING;
             END IF;
             IF FOUND THEN v_inserted := v_inserted + 1; ELSE v_skipped := v_skipped + 1; END IF;
-        EXCEPTION WHEN OTHERS THEN
+        EXCEPTION WHEN SQLSTATE 'P0002' THEN
             v_errors := v_errors || jsonb_build_array(jsonb_build_object('index', v_index - 1, 'code', 'INVALID_VALUE', 'message', 'registro invalido'));
         END;
       END LOOP;
     IF jsonb_array_length(v_errors) > 0 THEN
         RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'invalid records';
     END IF;
-    EXCEPTION WHEN OTHERS THEN
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
         v_existing := jsonb_build_object('request_id', p_request_id, 'status', 'rejected',
             'inserted', 0, 'skipped_duplicates', 0, 'rejected', v_count, 'errors', v_errors);
         INSERT INTO midas.resource_import_requests
@@ -121,6 +132,8 @@ BEGIN
         VALUES (p_request_id, p_actor_user_type, p_actor_user_id, p_source_type, p_source_name,
             encode(midas.digest(p_records::TEXT, 'sha256'), 'hex'), 'rejected', v_count, 0, 0, v_count, v_errors);
         RETURN v_existing;
+    WHEN OTHERS THEN
+        RAISE;
     END;
     v_existing := jsonb_build_object('request_id', p_request_id, 'status', 'accepted', 'inserted', v_inserted,
         'skipped_duplicates', v_skipped, 'rejected', 0, 'errors', '[]'::JSONB);
