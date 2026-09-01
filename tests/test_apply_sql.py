@@ -70,6 +70,7 @@ class ApplySqlTest(unittest.TestCase):
             [(path.name, mode) for path, mode in entries],
             [
                 ("banco_ouros_fisico.sql", "on_change"),
+                ("atualiza_lots_farm-owners.sql", "once"),
                 ("dataload_inicial.sql", "on_change"),
                 ("atualiza_password.sql", "once"),
                 ("midas-user.sql", "on_change"),
