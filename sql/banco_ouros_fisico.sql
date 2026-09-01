@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS farm_owners (
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
     document_number VARCHAR(11) NOT NULL CHECK (length(document_number) = 11),
     telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
+    first_acess BOOLEAN NOT NULL DEFAULT TRUE,
     id_farm INTEGER REFERENCES farms(id) NOT NULL
 );
 
@@ -89,6 +90,8 @@ CREATE TABLE IF NOT EXISTS lots (
     date_birth DATE NOT NULL,
     delivery_date DATE NOT NULL,
     gain NUMERIC NOT NULL CHECK(gain >= 0),
+    lots INTEGER NOT NULL DEFAULT 0 CHECK (lots >= 0),
+    cost DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (cost >= 0),
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL,
     id_farm INTEGER REFERENCES farms(id) NOT NULL,
     CHECK (delivered_chickens <= received_chickens),
