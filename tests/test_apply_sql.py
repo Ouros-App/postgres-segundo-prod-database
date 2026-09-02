@@ -74,6 +74,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("dataload_inicial.sql", "on_change"),
                 ("atualiza_password.sql", "once"),
                 ("midas-user.sql", "on_change"),
+                ("midas-resource-import.sql", "on_change"),
             ],
         )
 
