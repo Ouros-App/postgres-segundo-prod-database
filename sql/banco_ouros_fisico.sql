@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS lots (
     date_birth DATE NOT NULL,
     delivery_date DATE NOT NULL,
     gain NUMERIC NOT NULL CHECK(gain >= 0),
-    lots INTEGER NOT NULL DEFAULT 0 CHECK (lots >= 0),
+    losts INTEGER NOT NULL DEFAULT 0 CHECK (losts >= 0),
     cost DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (cost >= 0),
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL,
     id_farm INTEGER REFERENCES farms(id) NOT NULL,
