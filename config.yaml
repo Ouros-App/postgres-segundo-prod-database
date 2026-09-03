@@ -29,3 +29,5 @@ database:
       mode: once
     - file: midas-user.sql
       mode: on_change
+    - file: midas-resource-import.sql
+      mode: on_change
