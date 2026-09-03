@@ -72,6 +72,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("banco_ouros_fisico.sql", "on_change"),
                 ("atualiza_lots_farm-owners.sql", "once"),
                 ("dataload_inicial.sql", "on_change"),
+                ("dataload_lots_farm-owners.sql", "once"),
                 ("atualiza_password.sql", "once"),
                 ("midas-user.sql", "on_change"),
                 ("midas-resource-import.sql", "on_change"),

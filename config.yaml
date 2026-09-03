@@ -23,6 +23,8 @@ database:
       mode: once
     - file: dataload_inicial.sql
       mode: on_change
+    - file: dataload_lots_farm-owners.sql
+      mode: once
     - file: atualiza_password.sql
       mode: once
     - file: midas-user.sql
