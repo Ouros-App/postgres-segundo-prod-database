@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "sql/**"
+      - "config.yaml"
+      - "scripts/apply_sql.py"
+      - "requirements.txt"
   workflow_dispatch:
 
 permissions:
@@ -23,6 +28,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@v5
