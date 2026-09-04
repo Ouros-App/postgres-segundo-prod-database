@@ -81,7 +81,7 @@ def ensure_version_table(cur, root: Path, cfg: dict) -> None:
     cur.execute(path.read_text(encoding="utf-8"))
 
 
-def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str]]:
+def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str, str | None]]:
     db = cfg["database"]
     sql_dir = root / db["sql_path"]
     if not db["execution_order"]:
@@ -89,15 +89,20 @@ def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str]]:
 
     entries, seen = [], set()
     for item in db["execution_order"]:
-        name, mode = (
-            (item, "on_change")
-            if isinstance(item, str)
-            else (item.get("file"), item.get("mode", "on_change"))
-            if isinstance(item, dict)
-            else (None, None)
-        )
+        if isinstance(item, str):
+            name, mode, baseline_query = item, "on_change", None
+        elif isinstance(item, dict):
+            name = item.get("file")
+            mode = item.get("mode", "on_change")
+            baseline_query = item.get("baseline_query")
+        else:
+            name, mode, baseline_query = None, None, None
+
         if not isinstance(name, str) or not name or mode not in {"always", "on_change", "once", "never"}:
             raise ValueError("Cada script exige file e mode valido (always, on_change, once ou never).")
+        if baseline_query is not None and (mode != "once" or not isinstance(baseline_query, str) or not baseline_query.strip()):
+            raise ValueError(f"baseline_query so pode ser usado em scripts mode once: {name}")
+
         path = Path(name)
         identity = path.as_posix()
         if path.is_absolute() or ".." in path.parts or path.suffix != ".sql" or identity in seen:
@@ -106,8 +111,17 @@ def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str]]:
         path = sql_dir / path
         if not path.is_file():
             raise FileNotFoundError(f"SQL nao encontrado: {path}")
-        entries.append((path, mode))
+        entries.append((path, mode, baseline_query))
     return entries
+
+
+def record_script(cur, identity: str, checksum: str, commit_id: str) -> None:
+    cur.execute(
+        "INSERT INTO controle_scripts_sql (arquivo, checksum, commit_id) "
+        "VALUES (%s, %s, %s) ON CONFLICT (arquivo) DO UPDATE SET "
+        "checksum = EXCLUDED.checksum, commit_id = EXCLUDED.commit_id, executado_em = NOW()",
+        (identity, checksum, commit_id),
+    )
 
 
 def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
@@ -115,28 +129,39 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
     cur.execute("CREATE TABLE IF NOT EXISTS controle_scripts_sql ("
                 "arquivo TEXT PRIMARY KEY, checksum VARCHAR(64) NOT NULL, "
                 "commit_id VARCHAR(64) NOT NULL, executado_em TIMESTAMPTZ NOT NULL DEFAULT NOW())")
-    for path, mode in sql_entries(root, cfg):
+
+    for path, mode, baseline_query in sql_entries(root, cfg):
         identity = path.relative_to(root / cfg["database"]["sql_path"]).as_posix()
         content = path.read_text(encoding="utf-8")
         checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
         if mode == "never":
             print(f"[SKIP] {identity}: modo never")
             continue
+
         cur.execute("SELECT checksum FROM controle_scripts_sql WHERE arquivo = %s", (identity,))
         row = cur.fetchone()
+
         if mode == "once" and row:
             print(f"[SKIP] {identity}: modo once")
             continue
+
+        if mode == "once" and not row and baseline_query:
+            cur.execute(baseline_query)
+            baseline = cur.fetchone()
+            if baseline and bool(baseline[0]):
+                print(f"[BASELINE] {identity}: dados existentes detectados; registrando sem reexecutar")
+                record_script(cur, identity, checksum, commit_id)
+                continue
+
         if mode == "on_change" and row and row[0] == checksum:
             print(f"[SKIP] {identity}: sem alteracoes")
             continue
+
         reason = "modo always" if mode == "always" else "modo once" if mode == "once" else "arquivo novo" if not row else "conteudo alterado"
         print(f"[RUN] {identity}: {reason}")
         cur.execute(content)
-        cur.execute("INSERT INTO controle_scripts_sql (arquivo, checksum, commit_id) "
-                    "VALUES (%s, %s, %s) ON CONFLICT (arquivo) DO UPDATE SET "
-                    "checksum = EXCLUDED.checksum, commit_id = EXCLUDED.commit_id, executado_em = NOW()",
-                    (identity, checksum, commit_id))
+        record_script(cur, identity, checksum, commit_id)
 
 
 def main() -> None:
