@@ -135,11 +135,21 @@ def record_script(cur, identity: str, checksum: str, commit_id: str) -> None:
 
 
 def baseline_is_applied(cur, baseline_query: str, identity: str) -> bool:
-    """Run a baseline query and require exactly one PostgreSQL boolean result."""
+    """Run a baseline query and require exactly one row with one boolean column."""
     cur.execute(baseline_query)
-    baseline = cur.fetchone()
-    column_count = len(cur.description or ())
-    if baseline is None or column_count != 1 or len(baseline) != 1 or not isinstance(baseline[0], bool):
+    if cur.description is None:
+        raise RuntimeError(
+            f"baseline_query invalida para {identity}: esperado um result set BOOLEAN"
+        )
+
+    rows = cur.fetchmany(2)
+    if len(rows) != 1:
+        raise RuntimeError(
+            f"baseline_query invalida para {identity}: esperado exatamente uma linha"
+        )
+
+    baseline = rows[0]
+    if len(cur.description) != 1 or len(baseline) != 1 or not isinstance(baseline[0], bool):
         raise RuntimeError(
             f"baseline_query invalida para {identity}: esperado exatamente uma coluna BOOLEAN"
         )
