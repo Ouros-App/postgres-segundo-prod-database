@@ -83,7 +83,7 @@ class ApplySqlTest(unittest.TestCase):
             [(path.name, mode, baseline_query is not None) for path, mode, baseline_query in entries],
             [
                 ("banco_ouros_fisico.sql", "on_change", False),
-                ("atualiza_lots_farm-owners.sql", "once", False),
+                ("atualiza_lots_farm-owners.sql", "on_change", False),
                 ("dataload_inicial.sql", "once", True),
                 ("dataload_lots_farm-owners.sql", "once", False),
                 ("atualiza_password.sql", "once", False),
