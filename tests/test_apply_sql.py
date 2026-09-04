@@ -1,9 +1,22 @@
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.apply_sql import load_config, sql_entries
+from scripts.apply_sql import baseline_is_applied, load_config, sql_entries
+
+
+class FakeCursor:
+    def __init__(self, rows, description=(("applied",),)):
+        self.rows = rows
+        self.description = description
+
+    def execute(self, _query):
+        return None
+
+    def fetchmany(self, size):
+        return self.rows[:size]
 
 
 class ApplySqlTest(unittest.TestCase):
@@ -83,9 +96,25 @@ class ApplySqlTest(unittest.TestCase):
             for path, _mode, baseline_query in entries
             if path.name == "dataload_inicial.sql"
         )
-        expected_documents = [f"200000000{i:02d}" for i in range(1, 21)]
-        for document_number in expected_documents:
-            self.assertIn(f"('{document_number}')", dataload_baseline)
+        expected_documents = {f"200000000{i:02d}" for i in range(1, 21)}
+        actual_documents = set(re.findall(r"'((?:200000000)\d{2})'", dataload_baseline))
+        self.assertEqual(actual_documents, expected_documents)
+
+    def test_baseline_requires_exactly_one_boolean_row(self) -> None:
+        self.assertTrue(baseline_is_applied(FakeCursor([(True,)]), "SELECT TRUE", "seed.sql"))
+        self.assertFalse(baseline_is_applied(FakeCursor([(False,)]), "SELECT FALSE", "seed.sql"))
+
+        invalid_cursors = [
+            FakeCursor([]),
+            FakeCursor([(True,), (False,)]),
+            FakeCursor([("true",)]),
+            FakeCursor([(True, False)], description=(("a",), ("b",))),
+            FakeCursor([], description=None),
+        ]
+        for cursor in invalid_cursors:
+            with self.subTest(rows=cursor.rows, description=cursor.description):
+                with self.assertRaises(RuntimeError):
+                    baseline_is_applied(cursor, "SELECT ...", "seed.sql")
 
     def test_empty_execution_order_is_rejected(self) -> None:
         root = Path(__file__).resolve().parents[1]
