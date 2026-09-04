@@ -1,3 +1,5 @@
+-- Idempotent schema patch. Keep this migration replayable so legacy databases
+-- that were marked as migrated before these columns existed can self-heal.
 ALTER TABLE lots
 ADD COLUMN IF NOT EXISTS losts INTEGER NOT NULL DEFAULT 0
     CHECK (losts >= 0);
