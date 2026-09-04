@@ -20,7 +20,7 @@ database:
     - file: banco_ouros_fisico.sql
       mode: on_change
     - file: atualiza_lots_farm-owners.sql
-      mode: once
+      mode: on_change
     - file: dataload_inicial.sql
       mode: once
       baseline_query: >-
