@@ -22,7 +22,8 @@ database:
     - file: atualiza_lots_farm-owners.sql
       mode: once
     - file: dataload_inicial.sql
-      mode: on_change
+      mode: once
+      baseline_query: "SELECT COUNT(*) = 20 FROM company_employees WHERE document_number >= '20000000001' AND document_number <= '20000000020'"
     - file: dataload_lots_farm-owners.sql
       mode: once
     - file: atualiza_password.sql
