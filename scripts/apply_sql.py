@@ -134,6 +134,18 @@ def record_script(cur, identity: str, checksum: str, commit_id: str) -> None:
     )
 
 
+def baseline_is_applied(cur, baseline_query: str, identity: str) -> bool:
+    """Run a baseline query and require exactly one PostgreSQL boolean result."""
+    cur.execute(baseline_query)
+    baseline = cur.fetchone()
+    column_count = len(cur.description or ())
+    if baseline is None or column_count != 1 or len(baseline) != 1 or not isinstance(baseline[0], bool):
+        raise RuntimeError(
+            f"baseline_query invalida para {identity}: esperado exatamente uma coluna BOOLEAN"
+        )
+    return baseline[0] is True
+
+
 def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
     """Apply configured SQL files according to mode, checksum, and baseline state."""
     cur.execute("SELECT pg_advisory_xact_lock(84729341)")
@@ -158,9 +170,7 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
             continue
 
         if mode == "once" and not row and baseline_query:
-            cur.execute(baseline_query)
-            baseline = cur.fetchone()
-            if baseline and bool(baseline[0]):
+            if baseline_is_applied(cur, baseline_query, identity):
                 print(f"[BASELINE] {identity}: dados existentes detectados; registrando sem reexecutar")
                 record_script(cur, identity, checksum, commit_id)
                 continue
