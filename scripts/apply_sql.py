@@ -14,19 +14,23 @@ ENV_RE = re.compile(r"\$\{([A-Z0-9_]+)\}")
 
 
 def qident(name: str) -> str:
+    """Quote a PostgreSQL identifier safely."""
     return '"' + name.replace('"', '""') + '"'
 
 
 def load_config(root: Path) -> dict:
+    """Load config.yaml and resolve required environment placeholders."""
     raw = (root / "config.yaml").read_text(encoding="utf-8")
 
     def replace(match):
+        """Resolve one environment placeholder and reject blank values."""
         value = os.getenv(match.group(1))
         if value is None or not value.strip():
             raise RuntimeError(f"Variavel de ambiente obrigatoria ausente: {match.group(1)}")
         return value
 
     def expand(value):
+        """Recursively expand environment placeholders in parsed YAML values."""
         if isinstance(value, str):
             return ENV_RE.sub(replace, value)
         if isinstance(value, list):
@@ -39,16 +43,19 @@ def load_config(root: Path) -> dict:
 
 
 def git_value(root: Path, *args: str) -> str:
+    """Run a Git command and return its output or 'unknown' on failure."""
     res = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=False)
     return res.stdout.strip() if res.returncode == 0 else "unknown"
 
 
 def connect(cfg: dict, dbname: str, user: str, password: str):
+    """Open a PostgreSQL connection using the repository configuration."""
     db = cfg["database"]
     return psycopg2.connect(host=db["host"], port=db["port"], dbname=dbname, user=user, password=password)
 
 
 def ensure_database(cfg: dict) -> None:
+    """Create the application role and database when they do not exist."""
     db = cfg["database"]
     boot = db["bootstrap"]
     owner = db["owner"]
@@ -74,6 +81,7 @@ def ensure_database(cfg: dict) -> None:
 
 
 def ensure_version_table(cur, root: Path, cfg: dict) -> None:
+    """Execute the versioning schema required by the SQL runner."""
     db = cfg["database"]
     path = root / db["sql_path"] / db["version_schema_file"]
     if not path.is_file():
@@ -82,6 +90,7 @@ def ensure_version_table(cur, root: Path, cfg: dict) -> None:
 
 
 def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str, str | None]]:
+    """Validate configured SQL entries and return path, mode, and baseline query."""
     db = cfg["database"]
     sql_dir = root / db["sql_path"]
     if not db["execution_order"]:
@@ -116,6 +125,7 @@ def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str, str | None]]:
 
 
 def record_script(cur, identity: str, checksum: str, commit_id: str) -> None:
+    """Persist or refresh the execution record for one SQL script."""
     cur.execute(
         "INSERT INTO controle_scripts_sql (arquivo, checksum, commit_id) "
         "VALUES (%s, %s, %s) ON CONFLICT (arquivo) DO UPDATE SET "
@@ -125,6 +135,7 @@ def record_script(cur, identity: str, checksum: str, commit_id: str) -> None:
 
 
 def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
+    """Apply configured SQL files according to mode, checksum, and baseline state."""
     cur.execute("SELECT pg_advisory_xact_lock(84729341)")
     cur.execute("CREATE TABLE IF NOT EXISTS controle_scripts_sql ("
                 "arquivo TEXT PRIMARY KEY, checksum VARCHAR(64) NOT NULL, "
@@ -165,6 +176,7 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
 
 
 def main() -> None:
+    """Bootstrap the database, apply SQL entries, and record the repository commit."""
     root = Path(__file__).resolve().parents[1]
     load_dotenv(root / ".env")
     cfg = load_config(root)
