@@ -22,7 +22,22 @@ database:
     - file: atualiza_lots_farm-owners.sql
       mode: once
     - file: dataload_inicial.sql
-      mode: on_change
+      mode: once
+      baseline_query: >-
+        SELECT NOT EXISTS (
+          SELECT expected.document_number
+          FROM (VALUES
+            ('20000000001'), ('20000000002'), ('20000000003'), ('20000000004'), ('20000000005'),
+            ('20000000006'), ('20000000007'), ('20000000008'), ('20000000009'), ('20000000010'),
+            ('20000000011'), ('20000000012'), ('20000000013'), ('20000000014'), ('20000000015'),
+            ('20000000016'), ('20000000017'), ('20000000018'), ('20000000019'), ('20000000020')
+          ) AS expected(document_number)
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM company_employees actual
+            WHERE actual.document_number = expected.document_number
+          )
+        )
     - file: dataload_lots_farm-owners.sql
       mode: once
     - file: atualiza_password.sql

@@ -14,19 +14,23 @@ ENV_RE = re.compile(r"\$\{([A-Z0-9_]+)\}")
 
 
 def qident(name: str) -> str:
+    """Quote a PostgreSQL identifier safely."""
     return '"' + name.replace('"', '""') + '"'
 
 
 def load_config(root: Path) -> dict:
+    """Load config.yaml and resolve required environment placeholders."""
     raw = (root / "config.yaml").read_text(encoding="utf-8")
 
     def replace(match):
+        """Resolve one environment placeholder and reject blank values."""
         value = os.getenv(match.group(1))
         if value is None or not value.strip():
             raise RuntimeError(f"Variavel de ambiente obrigatoria ausente: {match.group(1)}")
         return value
 
     def expand(value):
+        """Recursively expand environment placeholders in parsed YAML values."""
         if isinstance(value, str):
             return ENV_RE.sub(replace, value)
         if isinstance(value, list):
@@ -39,16 +43,19 @@ def load_config(root: Path) -> dict:
 
 
 def git_value(root: Path, *args: str) -> str:
+    """Run a Git command and return its output or 'unknown' on failure."""
     res = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=False)
     return res.stdout.strip() if res.returncode == 0 else "unknown"
 
 
 def connect(cfg: dict, dbname: str, user: str, password: str):
+    """Open a PostgreSQL connection using the repository configuration."""
     db = cfg["database"]
     return psycopg2.connect(host=db["host"], port=db["port"], dbname=dbname, user=user, password=password)
 
 
 def ensure_database(cfg: dict) -> None:
+    """Create the application role and database when they do not exist."""
     db = cfg["database"]
     boot = db["bootstrap"]
     owner = db["owner"]
@@ -74,6 +81,7 @@ def ensure_database(cfg: dict) -> None:
 
 
 def ensure_version_table(cur, root: Path, cfg: dict) -> None:
+    """Execute the versioning schema required by the SQL runner."""
     db = cfg["database"]
     path = root / db["sql_path"] / db["version_schema_file"]
     if not path.is_file():
@@ -81,7 +89,8 @@ def ensure_version_table(cur, root: Path, cfg: dict) -> None:
     cur.execute(path.read_text(encoding="utf-8"))
 
 
-def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str]]:
+def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str, str | None]]:
+    """Validate configured SQL entries and return path, mode, and baseline query."""
     db = cfg["database"]
     sql_dir = root / db["sql_path"]
     if not db["execution_order"]:
@@ -89,15 +98,20 @@ def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str]]:
 
     entries, seen = [], set()
     for item in db["execution_order"]:
-        name, mode = (
-            (item, "on_change")
-            if isinstance(item, str)
-            else (item.get("file"), item.get("mode", "on_change"))
-            if isinstance(item, dict)
-            else (None, None)
-        )
+        if isinstance(item, str):
+            name, mode, baseline_query = item, "on_change", None
+        elif isinstance(item, dict):
+            name = item.get("file")
+            mode = item.get("mode", "on_change")
+            baseline_query = item.get("baseline_query")
+        else:
+            name, mode, baseline_query = None, None, None
+
         if not isinstance(name, str) or not name or mode not in {"always", "on_change", "once", "never"}:
             raise ValueError("Cada script exige file e mode valido (always, on_change, once ou never).")
+        if baseline_query is not None and (mode != "once" or not isinstance(baseline_query, str) or not baseline_query.strip()):
+            raise ValueError(f"baseline_query so pode ser usado em scripts mode once: {name}")
+
         path = Path(name)
         identity = path.as_posix()
         if path.is_absolute() or ".." in path.parts or path.suffix != ".sql" or identity in seen:
@@ -106,40 +120,83 @@ def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str]]:
         path = sql_dir / path
         if not path.is_file():
             raise FileNotFoundError(f"SQL nao encontrado: {path}")
-        entries.append((path, mode))
+        entries.append((path, mode, baseline_query))
     return entries
 
 
+def record_script(cur, identity: str, checksum: str, commit_id: str) -> None:
+    """Persist or refresh the execution record for one SQL script."""
+    cur.execute(
+        "INSERT INTO controle_scripts_sql (arquivo, checksum, commit_id) "
+        "VALUES (%s, %s, %s) ON CONFLICT (arquivo) DO UPDATE SET "
+        "checksum = EXCLUDED.checksum, commit_id = EXCLUDED.commit_id, executado_em = NOW()",
+        (identity, checksum, commit_id),
+    )
+
+
+def baseline_is_applied(cur, baseline_query: str, identity: str) -> bool:
+    """Run a baseline query and require exactly one row with one boolean column."""
+    cur.execute(baseline_query)
+    if cur.description is None:
+        raise RuntimeError(
+            f"baseline_query invalida para {identity}: esperado um result set BOOLEAN"
+        )
+
+    rows = cur.fetchmany(2)
+    if len(rows) != 1:
+        raise RuntimeError(
+            f"baseline_query invalida para {identity}: esperado exatamente uma linha"
+        )
+
+    baseline = rows[0]
+    if len(cur.description) != 1 or len(baseline) != 1 or not isinstance(baseline[0], bool):
+        raise RuntimeError(
+            f"baseline_query invalida para {identity}: esperado exatamente uma coluna BOOLEAN"
+        )
+    return baseline[0] is True
+
+
 def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
+    """Apply configured SQL files according to mode, checksum, and baseline state."""
     cur.execute("SELECT pg_advisory_xact_lock(84729341)")
     cur.execute("CREATE TABLE IF NOT EXISTS controle_scripts_sql ("
                 "arquivo TEXT PRIMARY KEY, checksum VARCHAR(64) NOT NULL, "
                 "commit_id VARCHAR(64) NOT NULL, executado_em TIMESTAMPTZ NOT NULL DEFAULT NOW())")
-    for path, mode in sql_entries(root, cfg):
+
+    for path, mode, baseline_query in sql_entries(root, cfg):
         identity = path.relative_to(root / cfg["database"]["sql_path"]).as_posix()
         content = path.read_text(encoding="utf-8")
         checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
         if mode == "never":
             print(f"[SKIP] {identity}: modo never")
             continue
+
         cur.execute("SELECT checksum FROM controle_scripts_sql WHERE arquivo = %s", (identity,))
         row = cur.fetchone()
+
         if mode == "once" and row:
             print(f"[SKIP] {identity}: modo once")
             continue
+
+        if mode == "once" and not row and baseline_query:
+            if baseline_is_applied(cur, baseline_query, identity):
+                print(f"[BASELINE] {identity}: dados existentes detectados; registrando sem reexecutar")
+                record_script(cur, identity, checksum, commit_id)
+                continue
+
         if mode == "on_change" and row and row[0] == checksum:
             print(f"[SKIP] {identity}: sem alteracoes")
             continue
+
         reason = "modo always" if mode == "always" else "modo once" if mode == "once" else "arquivo novo" if not row else "conteudo alterado"
         print(f"[RUN] {identity}: {reason}")
         cur.execute(content)
-        cur.execute("INSERT INTO controle_scripts_sql (arquivo, checksum, commit_id) "
-                    "VALUES (%s, %s, %s) ON CONFLICT (arquivo) DO UPDATE SET "
-                    "checksum = EXCLUDED.checksum, commit_id = EXCLUDED.commit_id, executado_em = NOW()",
-                    (identity, checksum, commit_id))
+        record_script(cur, identity, checksum, commit_id)
 
 
 def main() -> None:
+    """Bootstrap the database, apply SQL entries, and record the repository commit."""
     root = Path(__file__).resolve().parents[1]
     load_dotenv(root / ".env")
     cfg = load_config(root)
