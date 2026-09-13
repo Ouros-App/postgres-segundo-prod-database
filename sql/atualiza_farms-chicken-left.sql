@@ -1,6 +1,3 @@
--- Idempotent migration for databases created before the chicken tracking fields.
--- The DROP COLUMN statements permanently remove lots.date_birth and lots.gain.
-
 ALTER TABLE farms
     ADD COLUMN IF NOT EXISTS chickens_now INTEGER NOT NULL DEFAULT 0
         CHECK (chickens_now >= 0),
@@ -22,7 +19,6 @@ CREATE TABLE IF NOT EXISTS chicken_left (
         REFERENCES farms(id)
 );
 
--- Simulated current flock counts for the farms loaded by dataload_inicial.sql.
 UPDATE farms
 SET chickens_now = CASE name
     WHEN 'Granja para Produção de Ovos Caipiras - Atibaia' THEN 3200
