@@ -84,6 +84,7 @@ class ApplySqlTest(unittest.TestCase):
             [
                 ("banco_ouros_fisico.sql", "on_change", False),
                 ("atualiza_lots_farm-owners.sql", "on_change", False),
+                ("atualiza_farms-chicken-left.sql", "on_change", False),
                 ("dataload_inicial.sql", "once", True),
                 ("dataload_lots_farm-owners.sql", "once", False),
                 ("atualiza_password.sql", "once", False),

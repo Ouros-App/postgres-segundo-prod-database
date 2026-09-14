@@ -23,8 +23,20 @@ CREATE TABLE IF NOT EXISTS farms (
     region VARCHAR(50) NOT NULL CHECK(btrim(region) <> ''),
     poultry_capacity INTEGER NOT NULL CHECK(poultry_capacity >= 0),
     place VARCHAR(50) NOT NULL CHECK(length(place) > 0),
+    chickens_now INTEGER NOT NULL DEFAULT 0
+        CHECK (chickens_now >= 0),
+    foto_url TEXT,
     id_address INTEGER REFERENCES addresses(id) NOT NULL,
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS chicken_left (
+    id SERIAL PRIMARY KEY,
+    chickens_count INTEGER NOT NULL
+        CHECK (chickens_count > 0),
+    exit_date DATE NOT NULL,
+    id_farm INTEGER NOT NULL
+        REFERENCES farms(id)
 );
 
 CREATE TABLE IF NOT EXISTS tips (
@@ -54,6 +66,7 @@ CREATE TABLE IF NOT EXISTS farm_owners (
     document_number VARCHAR(11) NOT NULL CHECK (length(document_number) = 11),
     telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
     first_acess BOOLEAN NOT NULL DEFAULT TRUE,
+    foto_url TEXT,
     id_farm INTEGER REFERENCES farms(id) NOT NULL
 );
 
@@ -87,15 +100,12 @@ CREATE TABLE IF NOT EXISTS lots (
     id SERIAL PRIMARY KEY,
     received_chickens INTEGER NOT NULL CHECK (received_chickens >= 0),
     delivered_chickens INTEGER NOT NULL CHECK (delivered_chickens >= 0),
-    date_birth DATE NOT NULL,
     delivery_date DATE NOT NULL,
-    gain NUMERIC NOT NULL CHECK(gain >= 0),
     losts INTEGER NOT NULL DEFAULT 0 CHECK (losts >= 0),
     cost DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (cost >= 0),
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL,
     id_farm INTEGER REFERENCES farms(id) NOT NULL,
-    CHECK (delivered_chickens <= received_chickens),
-    CHECK (delivery_date >= date_birth)
+    CHECK (delivered_chickens <= received_chickens)
 );
 
 CREATE TABLE IF NOT EXISTS company_employees (
