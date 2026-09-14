@@ -42,6 +42,8 @@ database:
             WHERE actual.document_number = expected.document_number
           )
         )
+    - file: atualiza_consumo_mensal.sql
+      mode: on_change
     - file: dataload_lots_farm-owners.sql
       mode: once
     - file: atualiza_password.sql
