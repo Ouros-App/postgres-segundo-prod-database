@@ -6,4 +6,4 @@ WHERE losts = 0
   AND cost = 0;
 
 UPDATE farm_owners
-SET first_acess = CASE WHEN id % 4 = 0 THEN FALSE ELSE TRUE END;
+SET first_access = CASE WHEN id % 4 = 0 THEN FALSE ELSE TRUE END;
