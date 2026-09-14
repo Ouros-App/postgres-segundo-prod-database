@@ -86,6 +86,8 @@ class ApplySqlTest(unittest.TestCase):
                 ("atualiza_lots_farm-owners.sql", "on_change", False),
                 ("atualiza_farms-chicken-left.sql", "on_change", False),
                 ("dataload_inicial.sql", "once", True),
+                ("atualiza_consumo_mensal.sql", "on_change", False),
+                ("views_galinhas_consumo.sql", "on_change", False),
                 ("dataload_lots_farm-owners.sql", "once", False),
                 ("atualiza_password.sql", "once", False),
                 ("midas-user.sql", "on_change", False),
