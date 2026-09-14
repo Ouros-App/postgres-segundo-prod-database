@@ -8,5 +8,22 @@ ALTER TABLE lots
 ADD COLUMN IF NOT EXISTS cost DOUBLE PRECISION NOT NULL DEFAULT 0
     CHECK (cost >= 0);
 
-ALTER TABLE farm_owners
-ADD COLUMN IF NOT EXISTS first_acess BOOLEAN NOT NULL DEFAULT TRUE;
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'farm_owners'
+          AND column_name = 'first_acess'
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'farm_owners'
+          AND column_name = 'first_access'
+    ) THEN
+        ALTER TABLE farm_owners RENAME COLUMN first_acess TO first_access;
+    END IF;
+END $$;
