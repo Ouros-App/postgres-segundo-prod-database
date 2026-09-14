@@ -6,7 +6,7 @@ ALTER TABLE farms
 ALTER TABLE farm_owners
     ADD COLUMN IF NOT EXISTS foto_url TEXT;
 
-DROP VIEW IF EXISTS midas.lots;
+DROP VIEW IF EXISTS midas.lots RESTRICT;
 
 ALTER TABLE lots
     DROP COLUMN IF EXISTS date_birth,
