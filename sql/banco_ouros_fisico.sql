@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS farm_owners (
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
     document_number VARCHAR(11) NOT NULL CHECK (length(document_number) = 11),
     telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
-    first_acess BOOLEAN NOT NULL DEFAULT TRUE,
+    first_access BOOLEAN NOT NULL DEFAULT TRUE,
     foto_url TEXT,
     id_farm INTEGER REFERENCES farms(id) NOT NULL
 );
