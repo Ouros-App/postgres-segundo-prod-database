@@ -197,3 +197,36 @@ CREATE TABLE IF NOT EXISTS payments (
     FOREIGN KEY (id_enterprise_plan, id_enterprise)
         REFERENCES enterprise_plans(id, id_enterprise)
 );
+
+CREATE TABLE IF NOT EXISTS payments_log (
+    id INTEGER,
+    type VARCHAR,
+    value DOUBLE PRECISION,
+    date_creation TIMESTAMP,
+    id_enterprise INTEGER
+);
+
+
+CREATE TABLE IF NOT EXISTS lots_log (
+    id INTEGER,
+    received_chickens INTEGER,
+    delivered_chickens INTEGER,
+    delivery_date DATE,
+    losts INTEGER,
+    cost DOUBLE PRECISION,
+    id_enterprise INTEGER,
+    id_farm INTEGER
+);
+
+
+CREATE TABLE IF NOT EXISTS farms_log (
+    id INTEGER,
+    name VARCHAR,
+    area_property DOUBLE PRECISION,
+    region VARCHAR,
+    poulty_capacity INTEGER,
+    place VARCHAR,
+    chickens_now INTEGER,
+    id_adress INTEGER,
+    id_enterprise INTEGER
+);
