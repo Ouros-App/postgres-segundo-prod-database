@@ -198,7 +198,16 @@ CREATE TABLE IF NOT EXISTS payments (
         REFERENCES enterprise_plans(id, id_enterprise)
 );
 
-CREATE TABLE IF NOT EXISTS payments_logs (
+DO $$
+BEGIN
+    IF to_regclass('payments_logs') IS NOT NULL
+       AND to_regclass('payments_log') IS NULL THEN
+        ALTER TABLE payments_logs RENAME TO payments_log;
+    END IF;
+END;
+$$;
+
+CREATE TABLE IF NOT EXISTS payments_log (
     id INTEGER,
     type VARCHAR,
     value DOUBLE PRECISION,
@@ -206,7 +215,16 @@ CREATE TABLE IF NOT EXISTS payments_logs (
     id_enterprise INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS lots_logs (
+DO $$
+BEGIN
+    IF to_regclass('lots_logs') IS NOT NULL
+       AND to_regclass('lots_log') IS NULL THEN
+        ALTER TABLE lots_logs RENAME TO lots_log;
+    END IF;
+END;
+$$;
+
+CREATE TABLE IF NOT EXISTS lots_log (
     id INTEGER,
     received_chickens INTEGER,
     delivered_chickens INTEGER,
@@ -217,7 +235,16 @@ CREATE TABLE IF NOT EXISTS lots_logs (
     id_farm INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS farms_logs (
+DO $$
+BEGIN
+    IF to_regclass('farms_logs') IS NOT NULL
+       AND to_regclass('farms_log') IS NULL THEN
+        ALTER TABLE farms_logs RENAME TO farms_log;
+    END IF;
+END;
+$$;
+
+CREATE TABLE IF NOT EXISTS farms_log (
     id INTEGER,
     name VARCHAR,
     area_property DOUBLE PRECISION,

@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION log_payments_changes()
+CREATE OR REPLACE FUNCTION payments_changes_log()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -11,7 +11,7 @@ BEGIN
         payment_row := NEW;
     END IF;
 
-    INSERT INTO payments_logs (
+    INSERT INTO payments_log (
         id,
         type,
         value,
@@ -30,13 +30,14 @@ END;
 $$;
 
 DROP TRIGGER IF EXISTS payments_logs_trigger ON payments;
+DROP TRIGGER IF EXISTS payments_trigger_log ON payments;
 
-CREATE TRIGGER payments_logs_trigger
+CREATE TRIGGER payments_trigger_log
 AFTER INSERT OR UPDATE OR DELETE ON payments
 FOR EACH ROW
-EXECUTE FUNCTION log_payments_changes();
+EXECUTE FUNCTION payments_changes_log();
 
-CREATE OR REPLACE FUNCTION log_lots_changes()
+CREATE OR REPLACE FUNCTION lots_changes_log()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -49,7 +50,7 @@ BEGIN
         lot_row := NEW;
     END IF;
 
-    INSERT INTO lots_logs (
+    INSERT INTO lots_log (
         id,
         received_chickens,
         delivered_chickens,
@@ -74,13 +75,14 @@ END;
 $$;
 
 DROP TRIGGER IF EXISTS lots_logs_trigger ON lots;
+DROP TRIGGER IF EXISTS lots_trigger_log ON lots;
 
-CREATE TRIGGER lots_logs_trigger
+CREATE TRIGGER lots_trigger_log
 AFTER INSERT OR UPDATE OR DELETE ON lots
 FOR EACH ROW
-EXECUTE FUNCTION log_lots_changes();
+EXECUTE FUNCTION lots_changes_log();
 
-CREATE OR REPLACE FUNCTION log_farms_changes()
+CREATE OR REPLACE FUNCTION farms_changes_log()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
@@ -93,7 +95,7 @@ BEGIN
         farm_row := NEW;
     END IF;
 
-    INSERT INTO farms_logs (
+    INSERT INTO farms_log (
         id,
         name,
         area_property,
@@ -120,8 +122,9 @@ END;
 $$;
 
 DROP TRIGGER IF EXISTS farms_logs_trigger ON farms;
+DROP TRIGGER IF EXISTS farms_trigger_log ON farms;
 
-CREATE TRIGGER farms_logs_trigger
+CREATE TRIGGER farms_trigger_log
 AFTER INSERT OR UPDATE OR DELETE ON farms
 FOR EACH ROW
-EXECUTE FUNCTION log_farms_changes();
+EXECUTE FUNCTION farms_changes_log();
