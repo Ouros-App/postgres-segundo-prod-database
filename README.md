@@ -31,6 +31,11 @@ A aplicação automática está definida em `.github/workflows/apply-sql-on-main
 
 O executor também mantém a tabela `controle_scripts_sql`, com checksum, commit e data de execução de cada arquivo processado.
 
+As tabelas usadas pelo banco analítico recebem `updated_at` automaticamente por
+`sql/atualiza_updated_at_analytics.sql`. O role `analytics_sync_ro` pode ler
+somente essas tabelas para alimentar o banco analítico; sua senha deve ser
+configurada fora do repositório.
+
 ## Pré-requisitos
 
 - Python 3.12, usado pelo workflow de aplicação.
