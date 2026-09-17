@@ -1,34 +1,5 @@
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM pg_roles
-        WHERE rolname = 'midas_ro'
-    ) THEN
-        CREATE ROLE midas_ro
-            LOGIN
-            NOINHERIT
-            NOSUPERUSER
-            NOCREATEDB
-            NOCREATEROLE
-            NOREPLICATION
-            NOBYPASSRLS
-            CONNECTION LIMIT 5;
-    END IF;
-END
-$$;
-
-ALTER ROLE midas_ro
-    LOGIN
-    NOINHERIT
-    NOCREATEDB
-    NOCREATEROLE
-    NOREPLICATION
-    NOBYPASSRLS
-    CONNECTION LIMIT 5;
-
-ALTER ROLE midas_ro SET default_transaction_read_only = on;
-ALTER ROLE midas_ro SET search_path = midas, pg_catalog;
+-- Role-level provisioning for midas_ro is handled by scripts/apply_sql.py
+-- with bootstrap credentials. This migration only owns schema/view grants.
 
 CREATE SCHEMA IF NOT EXISTS midas;
 
