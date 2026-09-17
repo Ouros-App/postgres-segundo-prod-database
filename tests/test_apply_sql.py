@@ -46,20 +46,24 @@ class ServiceRoleCursor:
     """Cursor double for validating service-role hardening SQL."""
 
     def __init__(self, role_state=(False, False, False, False, False)):
+        """Initialize the fake with the administrative flags of an existing role."""
         self.role_state = role_state
         self.last_query = ""
         self.executed = []
 
     def execute(self, query, params=None):
+        """Record SQL commands instead of sending them to PostgreSQL."""
         self.last_query = query
         self.executed.append((query, params))
 
     def fetchone(self):
+        """Return role flags for the pg_roles lookup."""
         if "SELECT rolsuper" in self.last_query:
             return self.role_state
         return None
 
     def fetchall(self):
+        """Return no inherited role memberships by default."""
         return []
 
 
@@ -206,6 +210,7 @@ class ApplySqlTest(unittest.TestCase):
             assert_safe_baseline_query("UPDATE farms SET chickens_now = 0", "seed.sql")
 
     def test_service_role_hardening_does_not_require_superuser(self) -> None:
+        """Keep safe role hardening compatible with a non-superuser bootstrap."""
         cursor = ServiceRoleCursor()
         configure_service_role(cursor, "app", "analytics_sync_ro", 3)
         commands = "\n".join(query for query, _params in cursor.executed)
@@ -217,9 +222,29 @@ class ApplySqlTest(unittest.TestCase):
         self.assertNotIn("NOBYPASSRLS", commands)
 
     def test_service_role_rejects_existing_admin_privileges(self) -> None:
+        """Fail closed instead of silently accepting an administrative service role."""
         cursor = ServiceRoleCursor((True, False, False, False, False))
         with self.assertRaisesRegex(RuntimeError, "privilegios administrativos"):
             configure_service_role(cursor, "app", "analytics_sync_ro", 3)
+
+    def test_midas_role_uses_restricted_search_path(self) -> None:
+        """Keep Midas service access constrained to the Midas views and pg_catalog."""
+        cursor = ServiceRoleCursor()
+        configure_service_role(
+            cursor,
+            "app",
+            "midas_ro",
+            5,
+            search_path="midas, pg_catalog",
+        )
+        commands = "\n".join(query for query, _params in cursor.executed)
+        self.assertIn("search_path = midas, pg_catalog", commands)
+
+    def test_midas_migration_does_not_manage_roles(self) -> None:
+        """Keep role creation out of SQL executed by the application owner."""
+        root = Path(__file__).resolve().parents[1]
+        content = (root / "sql" / "midas-user.sql").read_text(encoding="utf-8")
+        self.assertNotRegex(content, r"(?i)\b(?:CREATE|ALTER)\s+ROLE\b")
 
     def test_expand_sql_secrets_quotes_literals_with_active_cursor(self) -> None:
         """Delegate SQL literal quoting to psycopg2 using the active cursor."""
