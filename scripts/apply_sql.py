@@ -46,6 +46,7 @@ def load_config(root: Path) -> dict:
 def expand_sql_secrets(content: str) -> str:
     """Expand environment placeholders as safely quoted SQL literals."""
     def replace(match):
+        """Resolve one SQL placeholder as a safely quoted literal."""
         name = match.group(1)
         value = os.getenv(name)
         if value is None:
