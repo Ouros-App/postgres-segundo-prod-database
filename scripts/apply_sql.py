@@ -121,7 +121,14 @@ def connect(cfg: dict, dbname: str, user: str, password: str):
     return psycopg2.connect(host=db["host"], port=db["port"], dbname=dbname, user=user, password=password)
 
 
-def configure_service_role(cur, db_name: str, role_name: str, connection_limit: int, password: str | None = None) -> None:
+def configure_service_role(
+    cur,
+    db_name: str,
+    role_name: str,
+    connection_limit: int,
+    password: str | None = None,
+    search_path: str = "public, pg_catalog",
+) -> None:
     """Create and harden a service role without requiring bootstrap SUPERUSER."""
     role = qident(role_name)
     cur.execute(
@@ -167,7 +174,7 @@ def configure_service_role(cur, db_name: str, role_name: str, connection_limit: 
     cur.execute(f"REVOKE ALL PRIVILEGES ON DATABASE {qident(db_name)} FROM {role}")
     cur.execute(f"GRANT CONNECT ON DATABASE {qident(db_name)} TO {role}")
     cur.execute(f"ALTER ROLE {role} SET default_transaction_read_only = on")
-    cur.execute(f"ALTER ROLE {role} SET search_path = public, pg_catalog")
+    cur.execute(f"ALTER ROLE {role} SET search_path = {search_path}")
 
 
 def ensure_database(cfg: dict) -> None:
@@ -194,6 +201,13 @@ def ensure_database(cfg: dict) -> None:
                 print("[SKIP] banco de dados: já existe")
 
             configure_service_role(cur, db["name"], "analytics_sync_ro", 3)
+            configure_service_role(
+                cur,
+                db["name"],
+                "midas_ro",
+                5,
+                search_path="midas, pg_catalog",
+            )
 
             auth_password = os.getenv("MS_AUTH_SERVICE_PASSWORD")
             configure_service_role(cur, db["name"], "ms_auth_service_ro", 5, auth_password)
