@@ -103,8 +103,9 @@ jobs:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_ROOT_DB: postgres
-      POSTGRES_ROOT_USER: postgres
-      POSTGRES_ROOT_PASSWORD: postgres
+      POSTGRES_ROOT_USER: ouros_bootstrap
+      POSTGRES_ROOT_PASSWORD: bootstrap
+      MS_AUTH_SERVICE_PASSWORD: integration-auth-secret
       GITHUB_COMMIT_MESSAGE: database integration test
     steps:
       - name: Checkout
@@ -117,6 +118,24 @@ jobs:
 
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
+
+      - name: Create limited bootstrap role
+        run: |
+          python - <<'PY'
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="postgres",
+              user="postgres", password="postgres"
+          )
+          conn.autocommit = True
+          with conn.cursor() as cur:
+              cur.execute(
+                  "CREATE ROLE ouros_bootstrap LOGIN PASSWORD %s CREATEDB CREATEROLE NOSUPERUSER NOREPLICATION NOBYPASSRLS",
+                  ("bootstrap",),
+              )
+          conn.close()
+          PY
 
       - name: Bootstrap database from zero
         run: python scripts/apply_sql.py
