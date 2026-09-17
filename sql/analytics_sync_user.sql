@@ -26,9 +26,26 @@ ALTER ROLE analytics_sync_ro
     NOBYPASSRLS
     CONNECTION LIMIT 3;
 
+DO $$
+DECLARE
+    granted_role TEXT;
+BEGIN
+    FOR granted_role IN
+        SELECT parent_role.rolname
+        FROM pg_auth_members membership
+        JOIN pg_roles parent_role ON parent_role.oid = membership.roleid
+        JOIN pg_roles member_role ON member_role.oid = membership.member
+        WHERE member_role.rolname = 'analytics_sync_ro'
+    LOOP
+        EXECUTE format('REVOKE %I FROM analytics_sync_ro', granted_role);
+    END LOOP;
+END
+$$;
+
 ALTER ROLE analytics_sync_ro SET default_transaction_read_only = on;
 ALTER ROLE analytics_sync_ro SET search_path = public, pg_catalog;
 
+REVOKE ALL PRIVILEGES ON SCHEMA public FROM analytics_sync_ro;
 GRANT USAGE ON SCHEMA public TO analytics_sync_ro;
 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM analytics_sync_ro;
 GRANT SELECT ON TABLE
