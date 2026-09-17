@@ -78,10 +78,169 @@ jobs:
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
 
+  database-integration:
+    name: database-integration
+    runs-on: ubuntu-latest
+    needs: ci
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ouros_integration
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_ROOT_DB: postgres
+      POSTGRES_ROOT_USER: postgres
+      POSTGRES_ROOT_PASSWORD: postgres
+      GITHUB_COMMIT_MESSAGE: database integration test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Bootstrap database from zero
+        run: python scripts/apply_sql.py
+
+      - name: Simulate real user changes
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="postgres", password="postgres"
+          )
+          with conn:
+              with conn.cursor() as cur:
+                  cur.execute("SELECT id FROM farms ORDER BY id LIMIT 1")
+                  farm_id = cur.fetchone()[0]
+                  cur.execute("UPDATE farms SET chickens_now = 123456 WHERE id = %s", (farm_id,))
+
+                  cur.execute("SELECT id FROM farm_owners ORDER BY id LIMIT 1")
+                  owner_id = cur.fetchone()[0]
+                  cur.execute("UPDATE farm_owners SET first_access = FALSE WHERE id = %s", (owner_id,))
+
+                  cur.execute("SELECT id FROM water_registries ORDER BY id LIMIT 1")
+                  water_id = cur.fetchone()[0]
+                  cur.execute(
+                      "UPDATE water_registries SET end_hydrometer = start_hydrometer + 777 WHERE id = %s",
+                      (water_id,),
+                  )
+
+          Path("/tmp/ouros-user-state.json").write_text(
+              json.dumps({"farm_id": farm_id, "owner_id": owner_id, "water_id": water_id}),
+              encoding="utf-8",
+          )
+          conn.close()
+          PY
+
+      - name: Reapply versioning
+        run: python scripts/apply_sql.py
+
+      - name: Verify user data was preserved
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import psycopg2
+
+          state = json.loads(Path("/tmp/ouros-user-state.json").read_text(encoding="utf-8"))
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="postgres", password="postgres"
+          )
+          with conn.cursor() as cur:
+              cur.execute("SELECT chickens_now FROM farms WHERE id = %s", (state["farm_id"],))
+              assert cur.fetchone()[0] == 123456, "versioning overwrote farms.chickens_now"
+
+              cur.execute("SELECT first_access FROM farm_owners WHERE id = %s", (state["owner_id"],))
+              assert cur.fetchone()[0] is False, "versioning overwrote farm_owners.first_access"
+
+              cur.execute(
+                  "SELECT end_hydrometer - start_hydrometer FROM water_registries WHERE id = %s",
+                  (state["water_id"],),
+              )
+              assert cur.fetchone()[0] == 777, "versioning overwrote water registry data"
+          conn.close()
+          PY
+
+      - name: Simulate lost application data with version history intact
+        run: |
+          python - <<'PY'
+          import psycopg2
+          from psycopg2 import sql
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="postgres", password="postgres"
+          )
+          with conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT COUNT(*) FROM controle_scripts_sql WHERE arquivo = 'dataload_inicial.sql'"
+                  )
+                  assert cur.fetchone()[0] == 1, "seed execution history must exist before recovery test"
+
+                  cur.execute(
+                      "SELECT tablename FROM pg_tables "
+                      "WHERE schemaname = 'public' "
+                      "AND tablename NOT IN ('controle_scripts_sql', 'controle_versoes')"
+                  )
+                  tables = [row[0] for row in cur.fetchall()]
+                  assert tables, "expected application tables before recovery test"
+                  query = sql.SQL("TRUNCATE TABLE {} CASCADE").format(
+                      sql.SQL(", ").join(sql.Identifier(table) for table in tables)
+                  )
+                  cur.execute(query)
+          conn.close()
+          PY
+
+      - name: Recover seed with stale version history
+        run: python scripts/apply_sql.py
+
+      - name: Verify seed was restored
+        run: |
+          python - <<'PY'
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="postgres", password="postgres"
+          )
+          with conn.cursor() as cur:
+              for table in ("addresses", "enterprises", "farms", "farm_owners", "company_employees"):
+                  cur.execute(f'SELECT COUNT(*) FROM "{table}"')
+                  count = cur.fetchone()[0]
+                  assert count > 0, f"seed recovery left {table} empty"
+          conn.close()
+          PY
+
   sql:
     name: sql
     runs-on: ubuntu-latest
-    needs: ci
+    needs: [ci, database-integration]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,7 +255,7 @@ jobs:
 
       - name: Block destructive SQL
         run: |
-          if grep -RInEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA))\b' sql; then
+          if grep -RInEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' sql; then
             echo "Destructive SQL is forbidden"
             exit 1
           fi

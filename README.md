@@ -96,7 +96,7 @@ Execute os testes existentes com:
 python -m unittest discover -s tests -v
 ```
 
-O workflow `.github/workflows/ci-cd.yml` valida a presença do scaffold, verifica nomes de arquivos SQL configurados e bloqueia SQL contendo `TRUNCATE` ou `DROP DATABASE`, `DROP TABLE` e `DROP SCHEMA`.
+O workflow `.github/workflows/ci-cd.yml` valida a presença do scaffold, executa integração contra PostgreSQL real e bloqueia migrations automáticas destrutivas que poderiam sobrescrever ou apagar dados de usuários.
 
 ## Estrutura do projeto
 

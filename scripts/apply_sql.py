@@ -12,11 +12,64 @@ from dotenv import load_dotenv
 
 
 ENV_RE = re.compile(r"\$\{([A-Z0-9_]+)\}")
+SQL_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+SQL_LINE_COMMENT_RE = re.compile(r"--[^\n]*")
+UNSAFE_SQL_PATTERNS = (
+    ("UPDATE", re.compile(r"\bUPDATE\s+(?:ONLY\s+)?\S+(?:\s+AS\s+\S+)?\s+SET\b", re.IGNORECASE)),
+    ("DELETE", re.compile(r"\bDELETE\s+FROM\b", re.IGNORECASE)),
+    ("TRUNCATE", re.compile(r"\bTRUNCATE\b", re.IGNORECASE)),
+    ("MERGE", re.compile(r"\bMERGE\s+INTO\b", re.IGNORECASE)),
+    ("UPSERT UPDATE", re.compile(r"\bON\s+CONFLICT\b[\s\S]*?\bDO\s+UPDATE\b", re.IGNORECASE)),
+    ("DROP DATA OBJECT", re.compile(r"\bDROP\s+(?:DATABASE|SCHEMA|TABLE|VIEW)\b", re.IGNORECASE)),
+    ("DROP COLUMN", re.compile(r"\bDROP\s+COLUMN\b", re.IGNORECASE)),
+)
+CORE_TABLES = (
+    "addresses",
+    "enterprises",
+    "farms",
+    "farm_owners",
+    "company_employees",
+    "water_registries",
+    "energy_registries",
+    "lots",
+)
 
 
 def qident(name: str) -> str:
     """Quote a PostgreSQL identifier safely."""
     return '"' + name.replace('"', '""') + '"'
+
+
+def strip_sql_comments(content: str) -> str:
+    """Remove SQL comments before applying the automatic-migration safety policy."""
+    content = SQL_BLOCK_COMMENT_RE.sub(" ", content)
+    return SQL_LINE_COMMENT_RE.sub(" ", content)
+
+
+def assert_safe_sql(content: str, identity: str) -> None:
+    """Reject automatic SQL that can overwrite or delete application data."""
+    checked = strip_sql_comments(content)
+    for label, pattern in UNSAFE_SQL_PATTERNS:
+        if pattern.search(checked):
+            raise RuntimeError(
+                f"SQL inseguro bloqueado em {identity}: {label}. "
+                "Migrations automaticas devem ser aditivas e preservar dados de usuarios."
+            )
+
+
+def assert_safe_baseline_query(query: str, identity: str) -> None:
+    """Baseline checks are read-only SELECT statements."""
+    checked = strip_sql_comments(query).strip()
+    if not re.match(r"^SELECT\b", checked, flags=re.IGNORECASE):
+        raise RuntimeError(f"baseline_query de {identity} deve ser SELECT read-only")
+    assert_safe_sql(checked, f"baseline_query:{identity}")
+
+
+def configure_transaction_safety(cur) -> None:
+    """Prefer a failed deploy over long locks that make the application unavailable."""
+    cur.execute("SET LOCAL lock_timeout = '5s'")
+    cur.execute("SET LOCAL statement_timeout = '120s'")
+    cur.execute("SET LOCAL idle_in_transaction_session_timeout = '60s'")
 
 
 def load_config(root: Path) -> dict:
@@ -147,7 +200,9 @@ def ensure_version_table(cur, root: Path, cfg: dict) -> None:
     path = root / db["sql_path"] / db["version_schema_file"]
     if not path.is_file():
         raise FileNotFoundError(f"SQL de versionamento nao encontrado: {path}")
-    cur.execute(path.read_text(encoding="utf-8"))
+    content = path.read_text(encoding="utf-8")
+    assert_safe_sql(content, db["version_schema_file"])
+    cur.execute(content)
 
 
 def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str, str | None]]:
@@ -196,7 +251,8 @@ def record_script(cur, identity: str, checksum: str, commit_id: str) -> None:
 
 
 def baseline_is_applied(cur, baseline_query: str, identity: str) -> bool:
-    """Run a baseline query and require exactly one row with one boolean column."""
+    """Run a read-only baseline query and require one boolean result."""
+    assert_safe_baseline_query(baseline_query, identity)
     cur.execute(baseline_query)
     if cur.description is None:
         raise RuntimeError(
@@ -217,6 +273,17 @@ def baseline_is_applied(cur, baseline_query: str, identity: str) -> bool:
     return baseline[0] is True
 
 
+def validate_core_schema(cur) -> None:
+    """Refuse to commit a migration batch if an application table disappeared."""
+    missing = []
+    for table in CORE_TABLES:
+        cur.execute("SELECT to_regclass(%s)", (f"public.{table}",))
+        if cur.fetchone()[0] is None:
+            missing.append(table)
+    if missing:
+        raise RuntimeError(f"Schema invalido apos migrations; tabelas ausentes: {', '.join(missing)}")
+
+
 def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
     """Apply configured SQL files according to mode, checksum, and baseline state."""
     cur.execute("SELECT pg_advisory_xact_lock(84729341)")
@@ -234,11 +301,12 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
         cur.execute("SELECT checksum FROM controle_scripts_sql WHERE arquivo = %s", (identity,))
         row = cur.fetchone()
 
-        if mode == "once" and row:
+        if mode == "once" and row and not baseline_query:
             print(f"[SKIP] {identity}: modo once")
             continue
 
         raw_content = path.read_text(encoding="utf-8")
+        assert_safe_sql(raw_content, identity)
 
         if mode == "once" and baseline_query:
             if baseline_is_applied(cur, baseline_query, identity):
@@ -246,6 +314,8 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
                 print(f"[BASELINE] {identity}: dados existentes detectados; registrando sem reexecutar")
                 record_script(cur, identity, checksum, commit_id)
                 continue
+            if row:
+                print(f"[RECOVER] {identity}: historico existe, mas baseline esta ausente; reexecutando com banco vazio")
 
         content = expand_sql_secrets(raw_content, cur)
         checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
@@ -254,14 +324,24 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
             print(f"[SKIP] {identity}: sem alteracoes")
             continue
 
-        reason = "modo always" if mode == "always" else "modo once" if mode == "once" else "arquivo novo" if not row else "conteudo alterado"
+        reason = (
+            "recuperacao de baseline"
+            if mode == "once" and baseline_query and row
+            else "modo always"
+            if mode == "always"
+            else "modo once"
+            if mode == "once"
+            else "arquivo novo"
+            if not row
+            else "conteudo alterado"
+        )
         print(f"[RUN] {identity}: {reason}")
         cur.execute(content)
         record_script(cur, identity, checksum, commit_id)
 
 
 def main() -> None:
-    """Bootstrap the database, apply SQL entries, and record the repository commit."""
+    """Bootstrap the database, atomically apply safe SQL, and record the commit."""
     root = Path(__file__).resolve().parents[1]
     load_dotenv(root / ".env")
     cfg = load_config(root)
@@ -276,8 +356,10 @@ def main() -> None:
     try:
         with conn:
             with conn.cursor() as cur:
+                configure_transaction_safety(cur)
                 ensure_version_table(cur, root, cfg)
                 apply_sql_files(root, cfg, cur, commit_id)
+                validate_core_schema(cur)
                 cur.execute(
                     f"INSERT INTO {qident(table)} (commit_id, comentario_commit) VALUES (%s, %s)",
                     (commit_id, commit_msg),
