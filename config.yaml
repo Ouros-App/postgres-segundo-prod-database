@@ -20,6 +20,14 @@ database:
   execution_order:
     - file: banco_ouros_fisico.sql
       mode: on_change
+    - file: atualiza_updated_at_analytics.sql
+      mode: on_change
+    - file: analytics_sync_user.sql
+      mode: on_change
+    - file: keycloak_user_link.sql
+      mode: on_change
+    - file: ms_auth_service.sql
+      mode: on_change
     - file: triggers_logs.sql
       mode: on_change
     - file: atualiza_lots_farm-owners.sql

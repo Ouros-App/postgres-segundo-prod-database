@@ -31,6 +31,11 @@ A aplicação automática está definida em `.github/workflows/apply-sql-on-main
 
 O executor também mantém a tabela `controle_scripts_sql`, com checksum, commit e data de execução de cada arquivo processado.
 
+As tabelas usadas pelo banco analítico recebem `updated_at` automaticamente por
+`sql/atualiza_updated_at_analytics.sql`. O role `analytics_sync_ro` pode ler
+somente essas tabelas para alimentar o banco analítico; sua senha deve ser
+configurada fora do repositório.
+
 ## Pré-requisitos
 
 - Python 3.12, usado pelo workflow de aplicação.
@@ -91,7 +96,7 @@ Execute os testes existentes com:
 python -m unittest discover -s tests -v
 ```
 
-O workflow `.github/workflows/ci-cd.yml` valida a presença do scaffold, verifica nomes de arquivos SQL configurados e bloqueia SQL contendo `TRUNCATE` ou `DROP DATABASE`, `DROP TABLE` e `DROP SCHEMA`.
+O workflow `.github/workflows/ci-cd.yml` valida a presença do scaffold, executa integração contra PostgreSQL real e bloqueia migrations automáticas destrutivas que poderiam sobrescrever ou apagar dados de usuários.
 
 ## Estrutura do projeto
 
