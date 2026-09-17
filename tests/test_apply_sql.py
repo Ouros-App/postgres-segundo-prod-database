@@ -64,6 +64,7 @@ class ApplySqlTest(unittest.TestCase):
             self.assertEqual(cfg["database"]["execution_order"], ["versionamento.sql"])
 
     def test_repository_config_executes_physical_schema(self) -> None:
+        """Keep the repository migration order synchronized with config.yaml."""
         root = Path(__file__).resolve().parents[1]
         os.environ.update(
             {
@@ -85,6 +86,8 @@ class ApplySqlTest(unittest.TestCase):
                 ("banco_ouros_fisico.sql", "on_change", False),
                 ("atualiza_updated_at_analytics.sql", "on_change", False),
                 ("analytics_sync_user.sql", "on_change", False),
+                ("keycloak_user_link.sql", "on_change", False),
+                ("triggers_logs.sql", "on_change", False),
                 ("atualiza_lots_farm-owners.sql", "on_change", False),
                 ("atualiza_farms-chicken-left.sql", "on_change", False),
                 ("dataload_inicial.sql", "once", True),
