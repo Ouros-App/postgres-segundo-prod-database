@@ -122,21 +122,33 @@ def connect(cfg: dict, dbname: str, user: str, password: str):
 
 
 def configure_service_role(cur, db_name: str, role_name: str, connection_limit: int, password: str | None = None) -> None:
-    """Create and harden a service role using bootstrap privileges."""
+    """Create and harden a service role without requiring bootstrap SUPERUSER."""
     role = qident(role_name)
-    cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role_name,))
-    role_exists = cur.fetchone() is not None
-    if not role_exists:
+    cur.execute(
+        "SELECT rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls "
+        "FROM pg_roles WHERE rolname = %s",
+        (role_name,),
+    )
+    role_state = cur.fetchone()
+    if role_state is None:
         cur.execute(f"CREATE ROLE {role} NOLOGIN")
         print(f"[CREATE] role de servico {role_name}")
+    elif any(role_state):
+        raise RuntimeError(
+            f"Role de servico {role_name} possui privilegios administrativos; "
+            "recusando alterar automaticamente sem SUPERUSER"
+        )
 
     login_clause = ""
     if role_name != "ms_auth_service_ro" or password:
         login_clause = "LOGIN "
 
+    # Deliberately avoid SUPERUSER/REPLICATION/BYPASSRLS attribute changes here.
+    # PostgreSQL requires a real superuser to change some of those flags. We fail
+    # closed above if an existing service role already has administrative powers.
     cur.execute(
-        f"ALTER ROLE {role} {login_clause}NOINHERIT NOSUPERUSER NOCREATEDB "
-        f"NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT {connection_limit}"
+        f"ALTER ROLE {role} {login_clause}NOINHERIT NOCREATEDB "
+        f"NOCREATEROLE CONNECTION LIMIT {connection_limit}"
     )
     if password:
         cur.execute(f"ALTER ROLE {role} PASSWORD %s", (password,))
