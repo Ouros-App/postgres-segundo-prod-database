@@ -1,49 +1,5 @@
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_roles WHERE rolname = 'analytics_sync_ro'
-    ) THEN
-        CREATE ROLE analytics_sync_ro
-            LOGIN
-            NOINHERIT
-            NOSUPERUSER
-            NOCREATEDB
-            NOCREATEROLE
-            NOREPLICATION
-            NOBYPASSRLS
-            CONNECTION LIMIT 3;
-    END IF;
-END
-$$;
-
-ALTER ROLE analytics_sync_ro
-    LOGIN
-    NOINHERIT
-    NOSUPERUSER
-    NOCREATEDB
-    NOCREATEROLE
-    NOREPLICATION
-    NOBYPASSRLS
-    CONNECTION LIMIT 3;
-
-DO $$
-DECLARE
-    granted_role TEXT;
-BEGIN
-    FOR granted_role IN
-        SELECT parent_role.rolname
-        FROM pg_auth_members membership
-        JOIN pg_roles parent_role ON parent_role.oid = membership.roleid
-        JOIN pg_roles member_role ON member_role.oid = membership.member
-        WHERE member_role.rolname = 'analytics_sync_ro'
-    LOOP
-        EXECUTE format('REVOKE %I FROM analytics_sync_ro', granted_role);
-    END LOOP;
-END
-$$;
-
-ALTER ROLE analytics_sync_ro SET default_transaction_read_only = on;
-ALTER ROLE analytics_sync_ro SET search_path = public, pg_catalog;
+-- Role-level provisioning is handled by scripts/apply_sql.py with bootstrap credentials.
+-- This migration is intentionally limited to privileges owned by the application DB owner.
 
 REVOKE ALL PRIVILEGES ON SCHEMA public FROM analytics_sync_ro;
 GRANT USAGE ON SCHEMA public TO analytics_sync_ro;
