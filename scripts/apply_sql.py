@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 import psycopg2
-from psycopg2.extensions import adapt
+from psycopg2 import sql
 import yaml
 from dotenv import load_dotenv
 
@@ -43,15 +43,15 @@ def load_config(root: Path) -> dict:
     return expand(yaml.safe_load(raw))
 
 
-def expand_sql_secrets(content: str) -> str:
-    """Expand environment placeholders as safely quoted SQL literals."""
+def expand_sql_secrets(content: str, cur) -> str:
+    """Expand SQL placeholders as literals prepared with the active connection."""
     def replace(match):
-        """Resolve one SQL placeholder as a safely quoted literal."""
+        """Resolve one SQL placeholder as a connection-aware quoted literal."""
         name = match.group(1)
         value = os.getenv(name)
         if value is None:
             raise RuntimeError(f"Variavel de ambiente obrigatoria ausente no SQL: {name}")
-        return adapt(value).getquoted().decode("utf-8")
+        return sql.Literal(value).as_string(cur)
 
     return ENV_RE.sub(replace, content)
 
@@ -226,8 +226,6 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
 
     for path, mode, baseline_query in sql_entries(root, cfg):
         identity = path.relative_to(root / cfg["database"]["sql_path"]).as_posix()
-        content = expand_sql_secrets(path.read_text(encoding="utf-8"))
-        checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
         if mode == "never":
             print(f"[SKIP] {identity}: modo never")
@@ -240,11 +238,17 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
             print(f"[SKIP] {identity}: modo once")
             continue
 
-        if mode == "once" and not row and baseline_query:
+        raw_content = path.read_text(encoding="utf-8")
+
+        if mode == "once" and baseline_query:
             if baseline_is_applied(cur, baseline_query, identity):
+                checksum = hashlib.sha256(raw_content.encode("utf-8")).hexdigest()
                 print(f"[BASELINE] {identity}: dados existentes detectados; registrando sem reexecutar")
                 record_script(cur, identity, checksum, commit_id)
                 continue
+
+        content = expand_sql_secrets(raw_content, cur)
+        checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
         if mode == "on_change" and row and row[0] == checksum:
             print(f"[SKIP] {identity}: sem alteracoes")
