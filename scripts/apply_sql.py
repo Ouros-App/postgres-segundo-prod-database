@@ -14,7 +14,7 @@ ENV_RE = re.compile(r"\$\{([A-Z0-9_]+)\}")
 SQL_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
 SQL_LINE_COMMENT_RE = re.compile(r"--[^\n]*")
 UNSAFE_SQL_PATTERNS = (
-    ("UPDATE", re.compile(r"\bUPDATE\s+(?:ONLY\s+)?(?:[A-Za-z_][A-Za-z0-9_]*\.)?[A-Za-z_\"]", re.IGNORECASE)),
+    ("UPDATE", re.compile(r"\bUPDATE\s+(?:ONLY\s+)?\S+(?:\s+AS\s+\S+)?\s+SET\b", re.IGNORECASE)),
     ("DELETE", re.compile(r"\bDELETE\s+FROM\b", re.IGNORECASE)),
     ("TRUNCATE", re.compile(r"\bTRUNCATE\b", re.IGNORECASE)),
     ("MERGE", re.compile(r"\bMERGE\s+INTO\b", re.IGNORECASE)),
