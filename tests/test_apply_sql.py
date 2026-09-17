@@ -9,6 +9,7 @@ from scripts.apply_sql import (
     assert_safe_baseline_query,
     assert_safe_sql,
     baseline_is_applied,
+    configure_service_role,
     expand_sql_secrets,
     load_config,
     sql_entries,
@@ -39,6 +40,27 @@ class MigrationCursor:
 
     def fetchone(self):
         return self.row
+
+
+class ServiceRoleCursor:
+    """Cursor double for validating service-role hardening SQL."""
+
+    def __init__(self, role_state=(False, False, False, False, False)):
+        self.role_state = role_state
+        self.last_query = ""
+        self.executed = []
+
+    def execute(self, query, params=None):
+        self.last_query = query
+        self.executed.append((query, params))
+
+    def fetchone(self):
+        if "SELECT rolsuper" in self.last_query:
+            return self.role_state
+        return None
+
+    def fetchall(self):
+        return []
 
 
 class ApplySqlTest(unittest.TestCase):
@@ -182,6 +204,22 @@ class ApplySqlTest(unittest.TestCase):
         assert_safe_baseline_query("SELECT EXISTS (SELECT 1 FROM farms)", "seed.sql")
         with self.assertRaisesRegex(RuntimeError, "deve ser SELECT"):
             assert_safe_baseline_query("UPDATE farms SET chickens_now = 0", "seed.sql")
+
+    def test_service_role_hardening_does_not_require_superuser(self) -> None:
+        cursor = ServiceRoleCursor()
+        configure_service_role(cursor, "app", "analytics_sync_ro", 3)
+        commands = "\n".join(query for query, _params in cursor.executed)
+        self.assertIn("NOINHERIT", commands)
+        self.assertIn("NOCREATEDB", commands)
+        self.assertIn("NOCREATEROLE", commands)
+        self.assertNotIn("NOSUPERUSER", commands)
+        self.assertNotIn("NOREPLICATION", commands)
+        self.assertNotIn("NOBYPASSRLS", commands)
+
+    def test_service_role_rejects_existing_admin_privileges(self) -> None:
+        cursor = ServiceRoleCursor((True, False, False, False, False))
+        with self.assertRaisesRegex(RuntimeError, "privilegios administrativos"):
+            configure_service_role(cursor, "app", "analytics_sync_ro", 3)
 
     def test_expand_sql_secrets_quotes_literals_with_active_cursor(self) -> None:
         """Delegate SQL literal quoting to psycopg2 using the active cursor."""
