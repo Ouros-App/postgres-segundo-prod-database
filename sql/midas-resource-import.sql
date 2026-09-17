@@ -1,5 +1,6 @@
 -- Importacao historica controlada pelo MCP (contrato v1, all_or_nothing).
 -- Unidades: agua em m3 (leituras cumulativas); energia em kWh; data sem fuso.
+-- Role-level provisioning for midas_importer is handled by scripts/apply_sql.py.
 
 CREATE SCHEMA IF NOT EXISTS midas;
 DO $$ DECLARE v_schema TEXT; BEGIN
@@ -149,11 +150,6 @@ $$;
 COMMENT ON FUNCTION midas.import_resource_records(UUID, TEXT, BIGINT, TEXT, TEXT, JSONB)
     IS 'MCP-only historical water/energy import; v1 all_or_nothing, farm_owner scoped, idempotent.';
 
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'midas_importer') THEN
-        CREATE ROLE midas_importer NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
-    END IF;
-END $$;
 REVOKE ALL ON FUNCTION midas.import_resource_records(UUID, TEXT, BIGINT, TEXT, TEXT, JSONB) FROM PUBLIC;
 GRANT USAGE ON SCHEMA midas TO midas_importer;
 GRANT EXECUTE ON FUNCTION midas.import_resource_records(UUID, TEXT, BIGINT, TEXT, TEXT, JSONB) TO midas_importer;
