@@ -71,13 +71,17 @@ def configure_service_role(cur, db_name: str, role_name: str, connection_limit: 
     """Create and harden a service role using bootstrap privileges."""
     role = qident(role_name)
     cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role_name,))
-    if cur.fetchone() is None:
+    role_exists = cur.fetchone() is not None
+    if not role_exists:
         cur.execute(f"CREATE ROLE {role} NOLOGIN")
         print(f"[CREATE] role de servico {role_name}")
 
-    login_clause = "LOGIN" if role_name != "ms_auth_service_ro" or password else "NOLOGIN"
+    login_clause = ""
+    if role_name != "ms_auth_service_ro" or password:
+        login_clause = "LOGIN "
+
     cur.execute(
-        f"ALTER ROLE {role} {login_clause} NOINHERIT NOSUPERUSER NOCREATEDB "
+        f"ALTER ROLE {role} {login_clause}NOINHERIT NOSUPERUSER NOCREATEDB "
         f"NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT {connection_limit}"
     )
     if password:
@@ -128,7 +132,10 @@ def ensure_database(cfg: dict) -> None:
             auth_password = os.getenv("MS_AUTH_SERVICE_PASSWORD")
             configure_service_role(cur, db["name"], "ms_auth_service_ro", 5, auth_password)
             if not auth_password:
-                print("[WARN] MS_AUTH_SERVICE_PASSWORD ausente; ms_auth_service_ro permanece NOLOGIN")
+                print(
+                    "[WARN] MS_AUTH_SERVICE_PASSWORD ausente; "
+                    "estado de login existente preservado (role novo permanece NOLOGIN)"
+                )
     finally:
         conn.close()
 
