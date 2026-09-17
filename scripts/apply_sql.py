@@ -195,7 +195,21 @@ def ensure_database(cfg: dict) -> None:
             else:
                 print("[SKIP] banco de dados: já existe")
 
-            configure_service_role(cur, db["name"], "analytics_sync_ro", 3)
+            analytics_password = os.getenv("ANALYTICS_SYNC_PASSWORD")
+            configure_service_role(
+                cur,
+                db["name"],
+                "analytics_sync_ro",
+                3,
+                analytics_password,
+                login=True if analytics_password else None,
+            )
+            if not analytics_password:
+                print(
+                    "[WARN] ANALYTICS_SYNC_PASSWORD ausente; "
+                    "estado de login existente preservado (role novo permanece NOLOGIN)"
+                )
+
             configure_service_role(
                 cur,
                 db["name"],
