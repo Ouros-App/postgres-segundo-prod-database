@@ -1,5 +1,4 @@
--- Idempotent schema patch. Keep this migration replayable so legacy databases
--- that were marked as migrated before these columns existed can self-heal.
+-- Migration aditiva e idempotente. Nao sobrescreve nem apaga dados existentes.
 ALTER TABLE lots
 ADD COLUMN IF NOT EXISTS losts INTEGER NOT NULL DEFAULT 0
     CHECK (losts >= 0);
@@ -10,6 +9,7 @@ ADD COLUMN IF NOT EXISTS cost DOUBLE PRECISION NOT NULL DEFAULT 0
 
 DO $$
 BEGIN
+    -- Banco legado que possui apenas o nome antigo: renomeia preservando os valores.
     IF EXISTS (
         SELECT 1
         FROM information_schema.columns
@@ -25,24 +25,8 @@ BEGIN
           AND column_name = 'first_access'
     ) THEN
         ALTER TABLE farm_owners RENAME COLUMN first_acess TO first_access;
-    ELSIF EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = current_schema()
-          AND table_name = 'farm_owners'
-          AND column_name = 'first_acess'
-    )
-    AND EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = current_schema()
-          AND table_name = 'farm_owners'
-          AND column_name = 'first_access'
-    ) THEN
-        UPDATE farm_owners
-        SET first_access = first_acess
-        WHERE first_access IS DISTINCT FROM first_acess;
-
-        ALTER TABLE farm_owners DROP COLUMN first_acess;
     END IF;
+
+    -- Se as duas colunas existirem, mantemos ambas. O versionamento automatico
+    -- nao escolhe qual valor do usuario deve prevalecer e nao apaga a coluna legada.
 END $$;
