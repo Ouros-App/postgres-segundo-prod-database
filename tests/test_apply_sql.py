@@ -240,11 +240,27 @@ class ApplySqlTest(unittest.TestCase):
         commands = "\n".join(query for query, _params in cursor.executed)
         self.assertIn("search_path = midas, pg_catalog", commands)
 
-    def test_midas_migration_does_not_manage_roles(self) -> None:
+    def test_importer_role_remains_no_login(self) -> None:
+        """Keep the importer as a group role that cannot authenticate directly."""
+        cursor = ServiceRoleCursor()
+        configure_service_role(
+            cursor,
+            "app",
+            "midas_importer",
+            5,
+            search_path="midas, pg_catalog",
+            login=False,
+        )
+        commands = "\n".join(query for query, _params in cursor.executed)
+        self.assertIn("NOLOGIN", commands)
+
+    def test_owner_migrations_do_not_manage_roles(self) -> None:
         """Keep role creation out of SQL executed by the application owner."""
         root = Path(__file__).resolve().parents[1]
-        content = (root / "sql" / "midas-user.sql").read_text(encoding="utf-8")
-        self.assertNotRegex(content, r"(?i)\b(?:CREATE|ALTER)\s+ROLE\b")
+        for name in ("midas-user.sql", "midas-resource-import.sql"):
+            content = (root / "sql" / name).read_text(encoding="utf-8")
+            with self.subTest(name=name):
+                self.assertNotRegex(content, r"(?i)\b(?:CREATE|ALTER)\s+ROLE\b")
 
     def test_expand_sql_secrets_quotes_literals_with_active_cursor(self) -> None:
         """Delegate SQL literal quoting to psycopg2 using the active cursor."""
