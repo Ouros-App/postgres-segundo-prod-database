@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import psycopg2
+from psycopg2.extensions import adapt
 import yaml
 from dotenv import load_dotenv
 
@@ -42,6 +43,18 @@ def load_config(root: Path) -> dict:
     return expand(yaml.safe_load(raw))
 
 
+def expand_sql_secrets(content: str) -> str:
+    """Expand environment placeholders as safely quoted SQL literals."""
+    def replace(match):
+        name = match.group(1)
+        value = os.getenv(name)
+        if value is None:
+            raise RuntimeError(f"Variavel de ambiente obrigatoria ausente no SQL: {name}")
+        return adapt(value).getquoted().decode("utf-8")
+
+    return ENV_RE.sub(replace, content)
+
+
 def git_value(root: Path, *args: str) -> str:
     """Run a Git command and return its output or 'unknown' on failure."""
     res = subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, check=False)
@@ -54,8 +67,41 @@ def connect(cfg: dict, dbname: str, user: str, password: str):
     return psycopg2.connect(host=db["host"], port=db["port"], dbname=dbname, user=user, password=password)
 
 
+def configure_service_role(cur, db_name: str, role_name: str, connection_limit: int, password: str | None = None) -> None:
+    """Create and harden a service role using bootstrap privileges."""
+    role = qident(role_name)
+    cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role_name,))
+    if cur.fetchone() is None:
+        cur.execute(f"CREATE ROLE {role} NOLOGIN")
+        print(f"[CREATE] role de servico {role_name}")
+
+    login_clause = "LOGIN" if role_name != "ms_auth_service_ro" or password else "NOLOGIN"
+    cur.execute(
+        f"ALTER ROLE {role} {login_clause} NOINHERIT NOSUPERUSER NOCREATEDB "
+        f"NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT {connection_limit}"
+    )
+    if password:
+        cur.execute(f"ALTER ROLE {role} PASSWORD %s", (password,))
+
+    cur.execute(
+        "SELECT parent_role.rolname "
+        "FROM pg_auth_members membership "
+        "JOIN pg_roles parent_role ON parent_role.oid = membership.roleid "
+        "JOIN pg_roles member_role ON member_role.oid = membership.member "
+        "WHERE member_role.rolname = %s",
+        (role_name,),
+    )
+    for (parent_role,) in cur.fetchall():
+        cur.execute(f"REVOKE {qident(parent_role)} FROM {role}")
+
+    cur.execute(f"REVOKE ALL PRIVILEGES ON DATABASE {qident(db_name)} FROM {role}")
+    cur.execute(f"GRANT CONNECT ON DATABASE {qident(db_name)} TO {role}")
+    cur.execute(f"ALTER ROLE {role} SET default_transaction_read_only = on")
+    cur.execute(f"ALTER ROLE {role} SET search_path = public, pg_catalog")
+
+
 def ensure_database(cfg: dict) -> None:
-    """Create the application role and database when they do not exist."""
+    """Create the application database and provision privileged service roles."""
     db = cfg["database"]
     boot = db["bootstrap"]
     owner = db["owner"]
@@ -76,6 +122,13 @@ def ensure_database(cfg: dict) -> None:
                 print("[CREATE] banco de dados")
             else:
                 print("[SKIP] banco de dados: já existe")
+
+            configure_service_role(cur, db["name"], "analytics_sync_ro", 3)
+
+            auth_password = os.getenv("MS_AUTH_SERVICE_PASSWORD")
+            configure_service_role(cur, db["name"], "ms_auth_service_ro", 5, auth_password)
+            if not auth_password:
+                print("[WARN] MS_AUTH_SERVICE_PASSWORD ausente; ms_auth_service_ro permanece NOLOGIN")
     finally:
         conn.close()
 
@@ -165,7 +218,7 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
 
     for path, mode, baseline_query in sql_entries(root, cfg):
         identity = path.relative_to(root / cfg["database"]["sql_path"]).as_posix()
-        content = path.read_text(encoding="utf-8")
+        content = expand_sql_secrets(path.read_text(encoding="utf-8"))
         checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
         if mode == "never":
