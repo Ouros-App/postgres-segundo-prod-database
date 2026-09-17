@@ -1,7 +1,7 @@
 UPDATE lots
 SET
     losts = received_chickens - delivered_chickens,
-    cost = ROUND((received_chickens * 0.5 + gain * 100)::NUMERIC, 2)
+    cost = ROUND((received_chickens * 0.5)::NUMERIC, 2)
 WHERE losts = 0
   AND cost = 0;
 
