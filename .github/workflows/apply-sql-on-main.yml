@@ -50,5 +50,6 @@ jobs:
           POSTGRES_ROOT_DB: ${{ secrets.POSTGRES_ROOT_DB }}
           POSTGRES_ROOT_USER: ${{ secrets.POSTGRES_ROOT_USER }}
           POSTGRES_ROOT_PASSWORD: ${{ secrets.POSTGRES_ROOT_PASSWORD }}
+          MS_AUTH_SERVICE_PASSWORD: ${{ secrets.MS_AUTH_SERVICE_PASSWORD }}
           GITHUB_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: python scripts/apply_sql.py
