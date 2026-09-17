@@ -242,22 +242,34 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
         cur.execute("SELECT checksum FROM controle_scripts_sql WHERE arquivo = %s", (identity,))
         row = cur.fetchone()
 
-        if mode == "once" and row:
-            print(f"[SKIP] {identity}: modo once")
-            continue
-
-        if mode == "once" and not row and baseline_query:
+        if mode == "once" and baseline_query:
             if baseline_is_applied(cur, baseline_query, identity):
                 print(f"[BASELINE] {identity}: dados existentes detectados; registrando sem reexecutar")
                 record_script(cur, identity, checksum, commit_id)
                 continue
+            if row:
+                print(f"[RECOVER] {identity}: historico existe, mas baseline esta ausente; reexecutando com banco vazio")
+
+        elif mode == "once" and row:
+            print(f"[SKIP] {identity}: modo once")
+            continue
 
         if mode == "on_change" and row and row[0] == checksum:
             print(f"[SKIP] {identity}: sem alteracoes")
             continue
 
         assert_safe_sql(content, identity)
-        reason = "modo always" if mode == "always" else "modo once" if mode == "once" else "arquivo novo" if not row else "conteudo alterado"
+        reason = (
+            "recuperacao de baseline"
+            if mode == "once" and baseline_query and row
+            else "modo always"
+            if mode == "always"
+            else "modo once"
+            if mode == "once"
+            else "arquivo novo"
+            if not row
+            else "conteudo alterado"
+        )
         print(f"[RUN] {identity}: {reason}")
         cur.execute(content)
         record_script(cur, identity, checksum, commit_id)
