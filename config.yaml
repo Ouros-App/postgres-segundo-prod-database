@@ -14,40 +14,42 @@ database:
   sql_path: sql
   version_table: controle_versoes
   version_schema_file: versionamento.sql
-  # Adicione os arquivos na ordem em que devem ser executados.
-  # mode: once | on_change | always | never
+  # on_change: somente definicoes idempotentes que nao alteram dados de usuarios.
+  # once: migrations imutaveis, executadas no maximo uma vez.
+  # never: scripts legados/desativados que nao podem rodar automaticamente.
   execution_order:
     - file: banco_ouros_fisico.sql
       mode: on_change
     - file: triggers_logs.sql
       mode: on_change
     - file: atualiza_lots_farm-owners.sql
-      mode: on_change
+      mode: once
     - file: atualiza_farms-chicken-left.sql
-      mode: on_change
+      mode: once
     - file: dataload_inicial.sql
       mode: once
+      # Seed somente em banco realmente vazio. Se qualquer dado de aplicacao existir,
+      # o runner registra baseline e nunca injeta/substitui dados sinteticos.
       baseline_query: >-
-        SELECT NOT EXISTS (
-          SELECT expected.document_number
-          FROM (VALUES
-            ('20000000001'), ('20000000002'), ('20000000003'), ('20000000004'), ('20000000005'),
-            ('20000000006'), ('20000000007'), ('20000000008'), ('20000000009'), ('20000000010'),
-            ('20000000011'), ('20000000012'), ('20000000013'), ('20000000014'), ('20000000015'),
-            ('20000000016'), ('20000000017'), ('20000000018'), ('20000000019'), ('20000000020')
-          ) AS expected(document_number)
-          WHERE NOT EXISTS (
-            SELECT 1
-            FROM company_employees actual
-            WHERE actual.document_number = expected.document_number
-          )
+        SELECT EXISTS (
+          SELECT 1 FROM addresses LIMIT 1
+        ) OR EXISTS (
+          SELECT 1 FROM enterprises LIMIT 1
+        ) OR EXISTS (
+          SELECT 1 FROM farms LIMIT 1
+        ) OR EXISTS (
+          SELECT 1 FROM farm_owners LIMIT 1
+        ) OR EXISTS (
+          SELECT 1 FROM company_employees LIMIT 1
+        ) OR EXISTS (
+          SELECT 1 FROM adms LIMIT 1
         )
     - file: atualiza_consumo_mensal.sql
-      mode: on_change
+      mode: never
     - file: views_galinhas_consumo.sql
       mode: on_change
     - file: dataload_lots_farm-owners.sql
-      mode: once
+      mode: never
     - file: atualiza_password.sql
       mode: once
     - file: midas-user.sql
