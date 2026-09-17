@@ -186,6 +186,57 @@ jobs:
           conn.close()
           PY
 
+      - name: Simulate lost application data with version history intact
+        run: |
+          python - <<'PY'
+          import psycopg2
+          from psycopg2 import sql
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="postgres", password="postgres"
+          )
+          with conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT COUNT(*) FROM controle_scripts_sql WHERE arquivo = 'dataload_inicial.sql'"
+                  )
+                  assert cur.fetchone()[0] == 1, "seed execution history must exist before recovery test"
+
+                  cur.execute(
+                      "SELECT tablename FROM pg_tables "
+                      "WHERE schemaname = 'public' "
+                      "AND tablename NOT IN ('controle_scripts_sql', 'controle_versoes')"
+                  )
+                  tables = [row[0] for row in cur.fetchall()]
+                  assert tables, "expected application tables before recovery test"
+                  query = sql.SQL("TRUNCATE TABLE {} CASCADE").format(
+                      sql.SQL(", ").join(sql.Identifier(table) for table in tables)
+                  )
+                  cur.execute(query)
+          conn.close()
+          PY
+
+      - name: Recover seed with stale version history
+        run: python scripts/apply_sql.py
+
+      - name: Verify seed was restored
+        run: |
+          python - <<'PY'
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="postgres", password="postgres"
+          )
+          with conn.cursor() as cur:
+              for table in ("addresses", "enterprises", "farms", "farm_owners", "company_employees"):
+                  cur.execute(f'SELECT COUNT(*) FROM "{table}"')
+                  count = cur.fetchone()[0]
+                  assert count > 0, f"seed recovery left {table} empty"
+          conn.close()
+          PY
+
   sql:
     name: sql
     runs-on: ubuntu-latest
