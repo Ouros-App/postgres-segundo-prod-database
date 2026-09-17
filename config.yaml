@@ -21,6 +21,8 @@ database:
       mode: on_change
     - file: keycloak_user_link.sql
       mode: on_change
+    - file: ms_auth_service.sql
+      mode: on_change
     - file: triggers_logs.sql
       mode: on_change
     - file: atualiza_lots_farm-owners.sql

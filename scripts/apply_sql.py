@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import psycopg2
+from psycopg2.extensions import adapt
 import yaml
 from dotenv import load_dotenv
 
@@ -124,6 +125,14 @@ def sql_entries(root: Path, cfg: dict) -> list[tuple[Path, str, str | None]]:
     return entries
 
 
+def expand_sql_secrets(content: str) -> str:
+    """Expand environment placeholders as safely quoted SQL literals."""
+    return ENV_RE.sub(
+        lambda match: adapt(os.environ[match.group(1)]).getquoted().decode("utf-8"),
+        content,
+    )
+
+
 def record_script(cur, identity: str, checksum: str, commit_id: str) -> None:
     """Persist or refresh the execution record for one SQL script."""
     cur.execute(
@@ -165,7 +174,7 @@ def apply_sql_files(root: Path, cfg: dict, cur, commit_id: str) -> None:
 
     for path, mode, baseline_query in sql_entries(root, cfg):
         identity = path.relative_to(root / cfg["database"]["sql_path"]).as_posix()
-        content = path.read_text(encoding="utf-8")
+        content = expand_sql_secrets(path.read_text(encoding="utf-8"))
         checksum = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
         if mode == "never":
