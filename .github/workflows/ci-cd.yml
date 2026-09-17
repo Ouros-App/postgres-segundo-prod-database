@@ -100,11 +100,12 @@ jobs:
       POSTGRES_HOST: 127.0.0.1
       POSTGRES_PORT: 5432
       POSTGRES_DB: ouros_integration
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
       POSTGRES_ROOT_DB: postgres
-      POSTGRES_ROOT_USER: postgres
-      POSTGRES_ROOT_PASSWORD: postgres
+      POSTGRES_ROOT_USER: ouros_bootstrap
+      POSTGRES_ROOT_PASSWORD: bootstrap
+      MS_AUTH_SERVICE_PASSWORD: integration-auth-secret
       GITHUB_COMMIT_MESSAGE: database integration test
     steps:
       - name: Checkout
@@ -118,6 +119,29 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
 
+      - name: Create limited bootstrap and owner roles
+        run: |
+          python - <<'PY'
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="postgres",
+              user="postgres", password="postgres"
+          )
+          conn.autocommit = True
+          with conn.cursor() as cur:
+              cur.execute(
+                  "CREATE ROLE app LOGIN PASSWORD %s NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS",
+                  ("app",),
+              )
+              cur.execute(
+                  "CREATE ROLE ouros_bootstrap LOGIN PASSWORD %s CREATEDB CREATEROLE NOSUPERUSER NOREPLICATION NOBYPASSRLS",
+                  ("bootstrap",),
+              )
+              cur.execute("GRANT app TO ouros_bootstrap WITH SET TRUE")
+          conn.close()
+          PY
+
       - name: Bootstrap database from zero
         run: python scripts/apply_sql.py
 
@@ -130,7 +154,7 @@ jobs:
 
           conn = psycopg2.connect(
               host="127.0.0.1", port=5432, dbname="ouros_integration",
-              user="postgres", password="postgres"
+              user="app", password="app"
           )
           with conn:
               with conn.cursor() as cur:
@@ -169,7 +193,7 @@ jobs:
           state = json.loads(Path("/tmp/ouros-user-state.json").read_text(encoding="utf-8"))
           conn = psycopg2.connect(
               host="127.0.0.1", port=5432, dbname="ouros_integration",
-              user="postgres", password="postgres"
+              user="app", password="app"
           )
           with conn.cursor() as cur:
               cur.execute("SELECT chickens_now FROM farms WHERE id = %s", (state["farm_id"],))
@@ -194,7 +218,7 @@ jobs:
 
           conn = psycopg2.connect(
               host="127.0.0.1", port=5432, dbname="ouros_integration",
-              user="postgres", password="postgres"
+              user="app", password="app"
           )
           with conn:
               with conn.cursor() as cur:
@@ -227,7 +251,7 @@ jobs:
 
           conn = psycopg2.connect(
               host="127.0.0.1", port=5432, dbname="ouros_integration",
-              user="postgres", password="postgres"
+              user="app", password="app"
           )
           with conn.cursor() as cur:
               for table in ("addresses", "enterprises", "farms", "farm_owners", "company_employees"):

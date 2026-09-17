@@ -121,22 +121,36 @@ def connect(cfg: dict, dbname: str, user: str, password: str):
     return psycopg2.connect(host=db["host"], port=db["port"], dbname=dbname, user=user, password=password)
 
 
-def configure_service_role(cur, db_name: str, role_name: str, connection_limit: int, password: str | None = None) -> None:
-    """Create and harden a service role using bootstrap privileges."""
+def configure_service_role(
+    cur,
+    db_name: str,
+    role_name: str,
+    connection_limit: int,
+    password: str | None = None,
+    search_path: str = "public, pg_catalog",
+    login: bool | None = True,
+) -> None:
+    """Create and harden a service role without requiring bootstrap SUPERUSER."""
     role = qident(role_name)
-    cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role_name,))
-    role_exists = cur.fetchone() is not None
-    if not role_exists:
+    cur.execute(
+        "SELECT rolsuper, rolcreatedb, rolcreaterole, rolreplication, rolbypassrls "
+        "FROM pg_roles WHERE rolname = %s",
+        (role_name,),
+    )
+    role_state = cur.fetchone()
+    if role_state is None:
         cur.execute(f"CREATE ROLE {role} NOLOGIN")
         print(f"[CREATE] role de servico {role_name}")
+    elif any(role_state):
+        raise RuntimeError(
+            f"Role de servico {role_name} possui privilegios administrativos; "
+            "recusando alterar automaticamente sem SUPERUSER"
+        )
 
-    login_clause = ""
-    if role_name != "ms_auth_service_ro" or password:
-        login_clause = "LOGIN "
-
+    login_clause = "LOGIN " if login is True else "NOLOGIN " if login is False else ""
     cur.execute(
-        f"ALTER ROLE {role} {login_clause}NOINHERIT NOSUPERUSER NOCREATEDB "
-        f"NOCREATEROLE NOREPLICATION NOBYPASSRLS CONNECTION LIMIT {connection_limit}"
+        f"ALTER ROLE {role} {login_clause}NOINHERIT NOCREATEDB "
+        f"NOCREATEROLE CONNECTION LIMIT {connection_limit}"
     )
     if password:
         cur.execute(f"ALTER ROLE {role} PASSWORD %s", (password,))
@@ -155,7 +169,7 @@ def configure_service_role(cur, db_name: str, role_name: str, connection_limit: 
     cur.execute(f"REVOKE ALL PRIVILEGES ON DATABASE {qident(db_name)} FROM {role}")
     cur.execute(f"GRANT CONNECT ON DATABASE {qident(db_name)} TO {role}")
     cur.execute(f"ALTER ROLE {role} SET default_transaction_read_only = on")
-    cur.execute(f"ALTER ROLE {role} SET search_path = public, pg_catalog")
+    cur.execute(f"ALTER ROLE {role} SET search_path = {search_path}")
 
 
 def ensure_database(cfg: dict) -> None:
@@ -181,10 +195,46 @@ def ensure_database(cfg: dict) -> None:
             else:
                 print("[SKIP] banco de dados: já existe")
 
-            configure_service_role(cur, db["name"], "analytics_sync_ro", 3)
+            analytics_password = os.getenv("ANALYTICS_SYNC_PASSWORD")
+            configure_service_role(
+                cur,
+                db["name"],
+                "analytics_sync_ro",
+                3,
+                analytics_password,
+                login=True if analytics_password else None,
+            )
+            if not analytics_password:
+                print(
+                    "[WARN] ANALYTICS_SYNC_PASSWORD ausente; "
+                    "estado de login existente preservado (role novo permanece NOLOGIN)"
+                )
+
+            configure_service_role(
+                cur,
+                db["name"],
+                "midas_ro",
+                5,
+                search_path="midas, pg_catalog",
+            )
+            configure_service_role(
+                cur,
+                db["name"],
+                "midas_importer",
+                5,
+                search_path="midas, pg_catalog",
+                login=False,
+            )
 
             auth_password = os.getenv("MS_AUTH_SERVICE_PASSWORD")
-            configure_service_role(cur, db["name"], "ms_auth_service_ro", 5, auth_password)
+            configure_service_role(
+                cur,
+                db["name"],
+                "ms_auth_service_ro",
+                5,
+                auth_password,
+                login=True if auth_password else None,
+            )
             if not auth_password:
                 print(
                     "[WARN] MS_AUTH_SERVICE_PASSWORD ausente; "
