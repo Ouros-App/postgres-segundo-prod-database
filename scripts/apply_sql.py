@@ -128,6 +128,7 @@ def configure_service_role(
     connection_limit: int,
     password: str | None = None,
     search_path: str = "public, pg_catalog",
+    login: bool | None = True,
 ) -> None:
     """Create and harden a service role without requiring bootstrap SUPERUSER."""
     role = qident(role_name)
@@ -146,13 +147,7 @@ def configure_service_role(
             "recusando alterar automaticamente sem SUPERUSER"
         )
 
-    login_clause = ""
-    if role_name != "ms_auth_service_ro" or password:
-        login_clause = "LOGIN "
-
-    # Deliberately avoid SUPERUSER/REPLICATION/BYPASSRLS attribute changes here.
-    # PostgreSQL requires a real superuser to change some of those flags. We fail
-    # closed above if an existing service role already has administrative powers.
+    login_clause = "LOGIN " if login is True else "NOLOGIN " if login is False else ""
     cur.execute(
         f"ALTER ROLE {role} {login_clause}NOINHERIT NOCREATEDB "
         f"NOCREATEROLE CONNECTION LIMIT {connection_limit}"
@@ -208,9 +203,24 @@ def ensure_database(cfg: dict) -> None:
                 5,
                 search_path="midas, pg_catalog",
             )
+            configure_service_role(
+                cur,
+                db["name"],
+                "midas_importer",
+                5,
+                search_path="midas, pg_catalog",
+                login=False,
+            )
 
             auth_password = os.getenv("MS_AUTH_SERVICE_PASSWORD")
-            configure_service_role(cur, db["name"], "ms_auth_service_ro", 5, auth_password)
+            configure_service_role(
+                cur,
+                db["name"],
+                "ms_auth_service_ro",
+                5,
+                auth_password,
+                login=True if auth_password else None,
+            )
             if not auth_password:
                 print(
                     "[WARN] MS_AUTH_SERVICE_PASSWORD ausente; "
