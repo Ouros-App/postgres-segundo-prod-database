@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.apply_sql import baseline_is_applied, load_config, sql_entries
+from scripts.apply_sql import baseline_is_applied, expand_sql_secrets, load_config, sql_entries
 
 
 class FakeCursor:
@@ -87,6 +87,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("atualiza_updated_at_analytics.sql", "on_change", False),
                 ("analytics_sync_user.sql", "on_change", False),
                 ("keycloak_user_link.sql", "on_change", False),
+                ("ms_auth_service.sql", "on_change", False),
                 ("triggers_logs.sql", "on_change", False),
                 ("atualiza_lots_farm-owners.sql", "on_change", False),
                 ("atualiza_farms-chicken-left.sql", "on_change", False),
@@ -107,6 +108,20 @@ class ApplySqlTest(unittest.TestCase):
         expected_documents = {f"200000000{i:02d}" for i in range(1, 21)}
         actual_documents = set(re.findall(r"'((?:200000000)\d{2})'", dataload_baseline))
         self.assertEqual(actual_documents, expected_documents)
+
+    def test_expand_sql_secrets_quotes_literals(self) -> None:
+        """Quote SQL secret values instead of interpolating raw content."""
+        os.environ["TEST_SQL_SECRET"] = "it's-safe"
+        self.assertEqual(
+            expand_sql_secrets("PASSWORD ${TEST_SQL_SECRET};"),
+            "PASSWORD 'it''s-safe';",
+        )
+
+    def test_expand_sql_secrets_rejects_missing_values(self) -> None:
+        """Reject unresolved SQL secret placeholders."""
+        os.environ.pop("MISSING_SQL_SECRET", None)
+        with self.assertRaisesRegex(RuntimeError, "MISSING_SQL_SECRET"):
+            expand_sql_secrets("PASSWORD ${MISSING_SQL_SECRET};")
 
     def test_baseline_requires_exactly_one_boolean_row(self) -> None:
         self.assertTrue(baseline_is_applied(FakeCursor([(True,)]), "SELECT TRUE", "seed.sql"))
