@@ -60,11 +60,11 @@ CREATE TABLE IF NOT EXISTS reviews (
 
 CREATE TABLE IF NOT EXISTS farm_owners (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL CHECK(length(name) > 0),
+    name VARCHAR(100) CHECK(length(name) > 0),
     password TEXT NOT NULL CHECK(length(password) > 0),
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
-    document_number VARCHAR(11) NOT NULL CHECK (length(document_number) = 11),
-    telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
+    document_number VARCHAR(11) CHECK (length(document_number) = 11),
+    telephone VARCHAR(13) CHECK(length(telephone) > 9),
     first_access BOOLEAN NOT NULL DEFAULT TRUE,
     foto_url TEXT,
     id_farm INTEGER REFERENCES farms(id) NOT NULL

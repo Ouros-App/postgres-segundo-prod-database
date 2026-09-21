@@ -36,6 +36,8 @@ database:
       mode: once
     - file: atualiza_farms-chicken-left.sql
       mode: once
+    - file: atualiza_farm-owners-campos-opcionais.sql
+      mode: once
     - file: dataload_inicial.sql
       mode: once
       # Seed somente em banco realmente vazio. Se qualquer dado de aplicacao existir,
