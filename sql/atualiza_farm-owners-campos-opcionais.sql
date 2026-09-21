@@ -1,0 +1,4 @@
+ALTER TABLE farm_owners
+    ALTER COLUMN name DROP NOT NULL,
+    ALTER COLUMN document_number DROP NOT NULL,
+    ALTER COLUMN telephone DROP NOT NULL;
