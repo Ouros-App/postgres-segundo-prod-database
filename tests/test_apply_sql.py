@@ -123,6 +123,7 @@ class ApplySqlTest(unittest.TestCase):
             [(path.name, mode, baseline_query is not None) for path, mode, baseline_query in entries],
             [
                 ("banco_ouros_fisico.sql", "on_change", False),
+                ("reconcile_farm_owners_first_access.sql", "on_change", False),
                 ("funcoes_consumo_metas.sql", "on_change", False),
                 ("atualiza_updated_at_analytics.sql", "on_change", False),
                 ("analytics_sync_user.sql", "on_change", False),
@@ -183,6 +184,17 @@ class ApplySqlTest(unittest.TestCase):
                 continue
             with self.subTest(path=path.name, mode=mode):
                 assert_safe_sql(path.read_text(encoding="utf-8"), path.name)
+
+    def test_first_access_repair_migration_is_safe_and_idempotent(self) -> None:
+        """Keep the legacy typo repair eligible for automatic reconciliation."""
+        root = Path(__file__).resolve().parents[1]
+        content = (root / "sql" / "reconcile_farm_owners_first_access.sql").read_text(
+            encoding="utf-8"
+        )
+        assert_safe_sql(content, "reconcile_farm_owners_first_access.sql")
+        self.assertIn("RENAME COLUMN first_acess TO first_access", content)
+        self.assertNotIn("DROP COLUMN", content)
+        self.assertNotRegex(content, r"(?i)\bUPDATE\b")
 
     def test_destructive_automatic_sql_is_rejected(self) -> None:
         unsafe = [
