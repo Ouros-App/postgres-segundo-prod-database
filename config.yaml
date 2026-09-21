@@ -20,6 +20,8 @@ database:
   execution_order:
     - file: banco_ouros_fisico.sql
       mode: on_change
+    - file: funcoes_consumo_metas.sql
+      mode: on_change
     - file: atualiza_updated_at_analytics.sql
       mode: on_change
     - file: analytics_sync_user.sql
