@@ -20,6 +20,8 @@ database:
   execution_order:
     - file: banco_ouros_fisico.sql
       mode: on_change
+    - file: procedures.sql
+      mode: on_change
     - file: reconcile_farm_owners_first_access.sql
       mode: on_change
     - file: funcoes_consumo_metas.sql
