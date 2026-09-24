@@ -8,8 +8,8 @@ AS $$
 DECLARE
     v_tip_id INTEGER;
 BEGIN
-    INSERT INTO tips (tip, id_farm)
-    VALUES (p_tip, p_id_farm)
+    INSERT INTO tips (tip)
+    VALUES (p_tip)
     RETURNING id INTO v_tip_id;
 
     INSERT INTO farms_tips (id_farm, id_tip)
@@ -45,8 +45,7 @@ BEGIN
         status,
         target_value,
         date_creation,
-        date_end,
-        id_farm
+        date_end
     )
     VALUES (
         p_title,
@@ -55,8 +54,7 @@ BEGIN
         p_status,
         p_target_value,
         p_date_creation,
-        p_date_end,
-        p_id_farm
+        p_date_end
     )
     RETURNING id INTO v_goal_id;
 
