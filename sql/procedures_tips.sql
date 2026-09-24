@@ -8,9 +8,21 @@ AS $$
 DECLARE
     v_tip_id INTEGER;
 BEGIN
-    INSERT INTO tips (tip, id_farm)
-    VALUES (p_tip, p_id_farm)
-    RETURNING id INTO v_tip_id;
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tips'
+          AND column_name = 'id_farm'
+    ) THEN
+        EXECUTE 'INSERT INTO tips (tip, id_farm) VALUES ($1, $2) RETURNING id'
+            INTO v_tip_id
+            USING p_tip, p_id_farm;
+    ELSE
+        INSERT INTO tips (tip)
+        VALUES (p_tip)
+        RETURNING id INTO v_tip_id;
+    END IF;
 
     INSERT INTO farms_tips (id_farm, id_tip)
     VALUES (p_id_farm, v_tip_id)

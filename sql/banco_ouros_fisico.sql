@@ -41,21 +41,19 @@ CREATE TABLE IF NOT EXISTS chicken_left (
 
 CREATE TABLE IF NOT EXISTS tips (
     id SERIAL PRIMARY KEY,
-    tip TEXT NOT NULL CHECK(length(tip) > 0),
-    id_farm INTEGER REFERENCES farms(id) NOT NULL
+    tip TEXT NOT NULL CHECK(length(tip) > 0)
 );
 
 CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
-    category VARCHAR(50) NOT NULL CHECK(length(category) > 0),
-    id_tip INTEGER REFERENCES tips(id) NOT NULL
+    category VARCHAR(50) NOT NULL CHECK(length(category) > 0)
 );
 
 CREATE TABLE IF NOT EXISTS reviews (
     id SERIAL PRIMARY KEY,
     comment TEXT NOT NULL,
     rating INTEGER NOT NULL CHECK (rating >= 0),
-    id_tip INTEGER REFERENCES tips(id) NOT NULL
+    id_tip INTEGER REFERENCES tips(id) ON DELETE CASCADE NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS farm_owners (
@@ -140,26 +138,26 @@ CREATE TABLE IF NOT EXISTS state_goals (
 CREATE TABLE IF NOT EXISTS regions_goals (
     id SERIAL PRIMARY KEY,
     region VARCHAR(50) NOT NULL CHECK(btrim(region) <> ''),
-    id_goal INTEGER REFERENCES state_goals(id) NOT NULL
+    id_goal INTEGER REFERENCES state_goals(id) ON DELETE CASCADE NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS farm_goals (
     id SERIAL PRIMARY KEY,
     id_farm INTEGER NOT NULL REFERENCES farms(id),
-    id_goal INTEGER NOT NULL REFERENCES state_goals(id),
+    id_goal INTEGER NOT NULL REFERENCES state_goals(id) ON DELETE CASCADE,
     UNIQUE (id_farm, id_goal)
 );
 
 CREATE TABLE IF NOT EXISTS tip_categories (
     id SERIAL PRIMARY KEY,
-    id_tip INTEGER NOT NULL REFERENCES tips(id),
+    id_tip INTEGER NOT NULL REFERENCES tips(id) ON DELETE CASCADE,
     id_category INTEGER NOT NULL REFERENCES categories(id),
     UNIQUE (id_tip, id_category)
 );
 
 CREATE TABLE IF NOT EXISTS state_goal_regions (
     id SERIAL PRIMARY KEY,
-    id_goal INTEGER NOT NULL REFERENCES state_goals(id),
+    id_goal INTEGER NOT NULL REFERENCES state_goals(id) ON DELETE CASCADE,
     id_region INTEGER NOT NULL REFERENCES regions_goals(id),
     UNIQUE (id_goal, id_region)
 );
@@ -167,7 +165,7 @@ CREATE TABLE IF NOT EXISTS state_goal_regions (
 CREATE TABLE IF NOT EXISTS farms_tips (
     id SERIAL PRIMARY KEY,
     id_farm INTEGER NOT NULL REFERENCES farms(id),
-    id_tip INTEGER NOT NULL REFERENCES tips(id),
+    id_tip INTEGER NOT NULL REFERENCES tips(id) ON DELETE CASCADE,
     UNIQUE (id_farm, id_tip)
 );
 
