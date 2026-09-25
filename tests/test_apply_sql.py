@@ -123,6 +123,7 @@ class ApplySqlTest(unittest.TestCase):
             [(path.name, mode, baseline_query is not None) for path, mode, baseline_query in entries],
             [
                 ("banco_ouros_fisico.sql", "on_change", False),
+                ("atualiza_tips_categories_relations.sql", "once", False),
                 ("procedures.sql", "on_change", False),
                 ("reconcile_farm_owners_first_access.sql", "on_change", False),
                 ("funcoes_consumo_metas.sql", "on_change", False),
@@ -196,6 +197,27 @@ class ApplySqlTest(unittest.TestCase):
         self.assertIn("RENAME COLUMN first_acess TO first_access", content)
         self.assertNotIn("DROP COLUMN", content)
         self.assertNotRegex(content, r"(?i)\bUPDATE\b")
+
+    def test_tips_categories_migration_is_the_only_column_drop_allowlisted(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        content = (root / "sql" / "atualiza_tips_categories_relations.sql").read_text(
+            encoding="utf-8"
+        )
+        assert_safe_sql(content, "atualiza_tips_categories_relations.sql")
+        for statement in (
+            "DROP VIEW IF EXISTS midas.tips;",
+            "DROP VIEW IF EXISTS midas.categories;",
+            "INSERT INTO farms_tips (id_farm, id_tip)",
+            "INSERT INTO tip_categories (id_tip, id_category)",
+            "ALTER TABLE tips DROP COLUMN IF EXISTS id_farm;",
+            "ALTER TABLE categories DROP COLUMN IF EXISTS id_tip;",
+        ):
+            self.assertIn(statement, content)
+        with self.assertRaisesRegex(RuntimeError, "SQL inseguro bloqueado"):
+            assert_safe_sql(
+                "ALTER TABLE farms DROP COLUMN IF EXISTS foto_url;",
+                "atualiza_tips_categories_relations.sql",
+            )
 
     def test_destructive_automatic_sql_is_rejected(self) -> None:
         unsafe = [

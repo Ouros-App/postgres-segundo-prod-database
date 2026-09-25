@@ -279,7 +279,12 @@ jobs:
 
       - name: Block destructive SQL
         run: |
-          if grep -RInEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' sql; then
+          migration='sql/atualiza_tips_categories_relations.sql'
+          if find sql -type f -name '*.sql' ! -path "$migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
             echo "Destructive SQL is forbidden"
+            exit 1
+          fi
+          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$migration" | grep -Ev 'DROP VIEW IF EXISTS midas\.(tips|categories);|ALTER TABLE (tips DROP COLUMN IF EXISTS id_farm|categories DROP COLUMN IF EXISTS id_tip);'; then
+            echo "Unexpected destructive SQL in approved migration"
             exit 1
           fi

@@ -41,14 +41,12 @@ CREATE TABLE IF NOT EXISTS chicken_left (
 
 CREATE TABLE IF NOT EXISTS tips (
     id SERIAL PRIMARY KEY,
-    tip TEXT NOT NULL CHECK(length(tip) > 0),
-    id_farm INTEGER REFERENCES farms(id) NOT NULL
+    tip TEXT NOT NULL CHECK(length(tip) > 0)
 );
 
 CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
-    category VARCHAR(50) NOT NULL CHECK(length(category) > 0),
-    id_tip INTEGER REFERENCES tips(id) NOT NULL
+    category VARCHAR(50) NOT NULL CHECK(length(category) > 0)
 );
 
 CREATE TABLE IF NOT EXISTS reviews (

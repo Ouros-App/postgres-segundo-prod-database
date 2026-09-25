@@ -24,10 +24,10 @@ CREATE OR REPLACE VIEW midas.farms AS
 SELECT * FROM public.farms;
 
 CREATE OR REPLACE VIEW midas.tips AS
-SELECT * FROM public.tips;
+SELECT id, tip FROM public.tips;
 
 CREATE OR REPLACE VIEW midas.categories AS
-SELECT * FROM public.categories;
+SELECT id, category FROM public.categories;
 
 CREATE OR REPLACE VIEW midas.reviews AS
 SELECT * FROM public.reviews;
