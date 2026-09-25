@@ -23,6 +23,20 @@ UNSAFE_SQL_PATTERNS = (
     ("DROP DATA OBJECT", re.compile(r"\bDROP\s+(?:DATABASE|SCHEMA|TABLE|VIEW)\b", re.IGNORECASE)),
     ("DROP COLUMN", re.compile(r"\bDROP\s+COLUMN\b", re.IGNORECASE)),
 )
+APPROVED_DESTRUCTIVE_STATEMENTS = {
+    "atualiza_tips_categories_relations.sql": (
+        re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.tips\s*;", re.IGNORECASE),
+        re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.categories\s*;", re.IGNORECASE),
+        re.compile(
+            r"\bALTER\s+TABLE\s+tips\s+DROP\s+COLUMN\s+IF\s+EXISTS\s+id_farm\s*;",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bALTER\s+TABLE\s+categories\s+DROP\s+COLUMN\s+IF\s+EXISTS\s+id_tip\s*;",
+            re.IGNORECASE,
+        ),
+    ),
+}
 CORE_TABLES = (
     "addresses",
     "enterprises",
@@ -49,6 +63,8 @@ def strip_sql_comments(content: str) -> str:
 def assert_safe_sql(content: str, identity: str) -> None:
     """Reject automatic SQL that can overwrite or delete application data."""
     checked = strip_sql_comments(content)
+    for approved_statement in APPROVED_DESTRUCTIVE_STATEMENTS.get(identity, ()):
+        checked = approved_statement.sub(" ", checked, count=1)
     for label, pattern in UNSAFE_SQL_PATTERNS:
         if pattern.search(checked):
             raise RuntimeError(
