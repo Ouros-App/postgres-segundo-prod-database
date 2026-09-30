@@ -199,6 +199,18 @@ class ApplySqlTest(unittest.TestCase):
         self.assertNotIn("DROP COLUMN", content)
         self.assertNotRegex(content, r"(?i)\bUPDATE\b")
 
+    def test_analytics_sync_role_can_read_normalized_tip_farm_relation(self) -> None:
+        """Keep analytics source privileges aligned with the normalized tip/farm model."""
+        root = Path(__file__).resolve().parents[1]
+        content = (root / "sql" / "analytics_sync_user.sql").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("public.farms_tips", content)
+        self.assertRegex(
+            content,
+            r"(?s)GRANT SELECT ON TABLE.*public\.farms_tips.*TO analytics_sync_ro;",
+        )
+
     def test_tips_categories_migration_is_the_only_column_drop_allowlisted(self) -> None:
         root = Path(__file__).resolve().parents[1]
         content = (root / "sql" / "atualiza_tips_categories_relations.sql").read_text(
