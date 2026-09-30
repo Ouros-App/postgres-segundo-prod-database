@@ -20,6 +20,7 @@ GRANT SELECT ON TABLE
     public.farm_goals,
     public.state_goal_regions,
     public.tips,
+    public.farms_tips,
     public.categories,
     public.tip_categories,
     public.reviews
