@@ -51,8 +51,7 @@ BEGIN
         status,
         target_value,
         date_creation,
-        date_end,
-        id_farm
+        date_end
     )
     VALUES (
         p_title,
@@ -61,14 +60,15 @@ BEGIN
         p_status,
         p_target_value,
         p_date_creation,
-        p_date_end,
-        p_id_farm
+        p_date_end
     )
     RETURNING id INTO p_goal_id;
 
-    INSERT INTO farm_goals (id_farm, id_goal)
-    VALUES (p_id_farm, p_goal_id)
-    ON CONFLICT (id_farm, id_goal) DO NOTHING;
+    IF p_id_farm IS NOT NULL THEN
+        INSERT INTO farm_goals (id_farm, id_goal)
+        VALUES (p_id_farm, p_goal_id)
+        ON CONFLICT (id_farm, id_goal) DO NOTHING;
+    END IF;
 
     IF p_region IS NOT NULL AND btrim(p_region) <> '' THEN
         INSERT INTO regions_goals (region, id_goal)
