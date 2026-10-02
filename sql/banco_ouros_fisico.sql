@@ -21,7 +21,6 @@ CREATE TABLE IF NOT EXISTS farms (
     name VARCHAR(100) NOT NULL CHECK(length(name) > 0),
     area_property NUMERIC NOT NULL CHECK(area_property > 0),
     region VARCHAR(50) NOT NULL CHECK(btrim(region) <> ''),
-    poultry_capacity INTEGER NOT NULL CHECK(poultry_capacity >= 0),
     place VARCHAR(50) NOT NULL CHECK(length(place) > 0),
     chickens_now INTEGER NOT NULL DEFAULT 0
         CHECK (chickens_now >= 0),

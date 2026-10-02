@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -133,6 +134,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("keycloak_user_link.sql", "on_change", False),
                 ("ms_auth_service.sql", "on_change", False),
                 ("triggers_logs.sql", "on_change", False),
+                ("remover_poultry_capacity_farms.sql", "once", False),
                 ("atualiza_lots_farm-owners.sql", "once", False),
                 ("atualiza_farms-chicken-left.sql", "once", False),
                 ("atualiza_farm-owners-campos-opcionais.sql", "once", False),
@@ -211,7 +213,7 @@ class ApplySqlTest(unittest.TestCase):
             r"(?s)GRANT SELECT ON TABLE.*public\.farms_tips.*TO analytics_sync_ro;",
         )
 
-    def test_tips_categories_migration_is_the_only_column_drop_allowlisted(self) -> None:
+    def test_tips_categories_migration_column_drops_are_allowlisted(self) -> None:
         root = Path(__file__).resolve().parents[1]
         content = (root / "sql" / "atualiza_tips_categories_relations.sql").read_text(
             encoding="utf-8"
@@ -230,6 +232,26 @@ class ApplySqlTest(unittest.TestCase):
             assert_safe_sql(
                 "ALTER TABLE farms DROP COLUMN IF EXISTS foto_url;",
                 "atualiza_tips_categories_relations.sql",
+            )
+
+    def test_farms_poultry_capacity_column_drop_is_allowlisted(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        content = (root / "sql" / "remover_poultry_capacity_farms.sql").read_text(
+            encoding="utf-8"
+        )
+        assert_safe_sql(content, "remover_poultry_capacity_farms.sql")
+        self.assertEqual(
+            len(re.findall(r"(?i)\bDROP\s+COLUMN\b", content)),
+            1,
+        )
+        self.assertIn(
+            "ALTER TABLE farms DROP COLUMN IF EXISTS poultry_capacity;",
+            content,
+        )
+        with self.assertRaisesRegex(RuntimeError, "SQL inseguro bloqueado"):
+            assert_safe_sql(
+                "ALTER TABLE farms DROP COLUMN IF EXISTS foto_url;",
+                "remover_poultry_capacity_farms.sql",
             )
 
     def test_procedures_sql_definitions(self) -> None:

@@ -145,6 +145,53 @@ jobs:
       - name: Bootstrap database from zero
         run: python scripts/apply_sql.py
 
+      - name: Verify farms capacity migration on a legacy schema
+        run: |
+          python - <<'PY'
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="app", password="app"
+          )
+          with conn:
+              with conn.cursor() as cur:
+                  cur.execute("ALTER TABLE farms ADD COLUMN poultry_capacity INTEGER")
+                  cur.execute("UPDATE farms SET poultry_capacity = 9876 WHERE id = (SELECT MIN(id) FROM farms)")
+                  cur.execute(
+                      "DELETE FROM controle_scripts_sql "
+                      "WHERE arquivo = 'remover_poultry_capacity_farms.sql'"
+                  )
+          conn.close()
+          PY
+          python scripts/apply_sql.py
+          python - <<'PY'
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="app", password="app"
+          )
+          with conn.cursor() as cur:
+              cur.execute(
+                  "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                  "WHERE table_schema = 'public' AND table_name = 'farms' "
+                  "AND column_name = 'poultry_capacity')"
+              )
+              assert cur.fetchone()[0] is False, "farms.poultry_capacity was not removed"
+              cur.execute("SELECT id FROM farms ORDER BY id LIMIT 1")
+              farm_id = cur.fetchone()[0]
+              cur.execute("UPDATE farms SET chickens_now = chickens_now + 1 WHERE id = %s", (farm_id,))
+              cur.execute(
+                  "SELECT poulty_capacity FROM farms_log WHERE id = %s "
+                  "ORDER BY ctid DESC LIMIT 1",
+                  (farm_id,),
+              )
+              assert cur.fetchone()[0] is None, "new farm logs should not depend on the removed capacity column"
+          conn.commit()
+          conn.close()
+          PY
+
       - name: Simulate real user changes
         run: |
           python - <<'PY'
@@ -280,11 +327,16 @@ jobs:
       - name: Block destructive SQL
         run: |
           migration='sql/atualiza_tips_categories_relations.sql'
-          if find sql -type f -name '*.sql' ! -path "$migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
+          farms_migration='sql/remover_poultry_capacity_farms.sql'
+          if find sql -type f -name '*.sql' ! -path "$migration" ! -path "$farms_migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
             echo "Destructive SQL is forbidden"
             exit 1
           fi
           if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$migration" | grep -Ev 'DROP VIEW IF EXISTS midas\.(tips|categories);|ALTER TABLE (tips DROP COLUMN IF EXISTS id_farm|categories DROP COLUMN IF EXISTS id_tip);'; then
             echo "Unexpected destructive SQL in approved migration"
+            exit 1
+          fi
+          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$farms_migration" | grep -Ev 'ALTER TABLE farms DROP COLUMN IF EXISTS poultry_capacity;'; then
+            echo "Unexpected destructive SQL in farms migration"
             exit 1
           fi

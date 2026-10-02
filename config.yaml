@@ -40,6 +40,8 @@ database:
       mode: on_change
     - file: triggers_logs.sql
       mode: on_change
+    - file: remover_poultry_capacity_farms.sql
+      mode: once
     - file: atualiza_lots_farm-owners.sql
       mode: once
     - file: atualiza_farms-chicken-left.sql

@@ -36,6 +36,12 @@ APPROVED_DESTRUCTIVE_STATEMENTS = {
             re.IGNORECASE,
         ),
     ),
+    "remover_poultry_capacity_farms.sql": (
+        re.compile(
+            r"\bALTER\s+TABLE\s+farms\s+DROP\s+COLUMN\s+IF\s+EXISTS\s+poultry_capacity\s*;",
+            re.IGNORECASE,
+        ),
+    ),
 }
 CORE_TABLES = (
     "addresses",
