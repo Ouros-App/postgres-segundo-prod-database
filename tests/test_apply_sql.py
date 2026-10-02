@@ -232,6 +232,16 @@ class ApplySqlTest(unittest.TestCase):
                 "atualiza_tips_categories_relations.sql",
             )
 
+    def test_procedures_sql_definitions(self) -> None:
+        """Keep procedures configured with inout return ids and valid constraint references."""
+        root = Path(__file__).resolve().parents[1]
+        content = (root / "sql" / "procedures.sql").read_text(encoding="utf-8")
+        assert_safe_sql(content, "procedures.sql")
+        self.assertIn("INOUT p_tip_id INTEGER DEFAULT NULL", content)
+        self.assertIn("INOUT p_goal_id INTEGER DEFAULT NULL", content)
+        self.assertIn("p_region VARCHAR(50)", content)
+        self.assertIn("id_farm", content)
+
     def test_destructive_automatic_sql_is_rejected(self) -> None:
         unsafe = [
             "UPDATE farms SET chickens_now = 0;",
