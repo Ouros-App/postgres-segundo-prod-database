@@ -163,7 +163,7 @@ jobs:
                   )
                   before = [row[0] for row in cur.fetchall()]
                   assert "poultry_capacity" not in before
-                  assert len(before) == 9
+                  assert len(before) == 10
                   cur.execute("ALTER TABLE farms ADD COLUMN poultry_capacity INTEGER")
                   cur.execute(
                       "DELETE FROM controle_scripts_sql "
@@ -187,7 +187,7 @@ jobs:
               )
               after = [row[0] for row in cur.fetchall()]
               assert "poultry_capacity" not in after
-              assert len(after) == 9
+              assert len(after) == 10
               cur.execute(
                   "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
                   "WHERE table_schema = 'public' AND table_name = 'farms' "
@@ -224,7 +224,8 @@ jobs:
                           chickens_now,
                           foto_url,
                           id_address,
-                          id_enterprise
+                          id_enterprise,
+                          updated_at
                       FROM public.farms
                       """
                   )
@@ -251,8 +252,20 @@ jobs:
               assert cur.fetchone()[0] is False, "farms.poultry_capacity was not removed"
               cur.execute("SELECT to_regclass('midas.farms')")
               assert cur.fetchone()[0] == "midas.farms", "midas.farms view must be preserved"
-              cur.execute("SELECT poultry_capacity FROM midas.farms LIMIT 1")
-              assert cur.fetchone()[0] is None, "legacy Midas capacity field must remain compatible"
+              cur.execute(
+                  "SELECT column_name FROM information_schema.columns "
+                  "WHERE table_schema = 'midas' AND table_name = 'farms' "
+                  "ORDER BY ordinal_position"
+              )
+              legacy_columns = [row[0] for row in cur.fetchall()]
+              assert legacy_columns == [
+                  "id", "name", "area_property", "region", "poultry_capacity",
+                  "place", "chickens_now", "foto_url", "id_address",
+                  "id_enterprise", "updated_at"
+              ], f"unexpected Midas farms signature: {legacy_columns}"
+              cur.execute("SELECT poultry_capacity, updated_at FROM midas.farms LIMIT 1")
+              capacity, _updated_at = cur.fetchone()
+              assert capacity is None, "legacy Midas capacity field must remain compatible"
               cur.execute("SELECT id FROM farms ORDER BY id LIMIT 1")
               farm_id = cur.fetchone()[0]
               cur.execute("UPDATE farms SET chickens_now = chickens_now + 1 WHERE id = %s", (farm_id,))
