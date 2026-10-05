@@ -145,6 +145,58 @@ jobs:
       - name: Bootstrap database from zero
         run: python scripts/apply_sql.py
 
+      - name: Verify farms capacity migration with modern Midas view
+        run: |
+          python - <<'PY'
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="app", password="app"
+          )
+          with conn:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      "SELECT column_name FROM information_schema.columns "
+                      "WHERE table_schema = 'midas' AND table_name = 'farms' "
+                      "ORDER BY ordinal_position"
+                  )
+                  before = [row[0] for row in cur.fetchall()]
+                  assert "poultry_capacity" not in before
+                  assert len(before) == 9
+                  cur.execute("ALTER TABLE farms ADD COLUMN poultry_capacity INTEGER")
+                  cur.execute(
+                      "DELETE FROM controle_scripts_sql "
+                      "WHERE arquivo = 'remover_poultry_capacity_farms.sql'"
+                  )
+          conn.close()
+          PY
+          python scripts/apply_sql.py
+          python - <<'PY'
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="app", password="app"
+          )
+          with conn.cursor() as cur:
+              cur.execute(
+                  "SELECT column_name FROM information_schema.columns "
+                  "WHERE table_schema = 'midas' AND table_name = 'farms' "
+                  "ORDER BY ordinal_position"
+              )
+              after = [row[0] for row in cur.fetchall()]
+              assert "poultry_capacity" not in after
+              assert len(after) == 9
+              cur.execute(
+                  "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                  "WHERE table_schema = 'public' AND table_name = 'farms' "
+                  "AND column_name = 'poultry_capacity')"
+              )
+              assert cur.fetchone()[0] is False
+          conn.close()
+          PY
+
       - name: Verify farms capacity migration on a legacy schema
         run: |
           python - <<'PY'
@@ -158,9 +210,10 @@ jobs:
               with conn.cursor() as cur:
                   cur.execute("ALTER TABLE farms ADD COLUMN poultry_capacity INTEGER")
                   cur.execute("UPDATE farms SET poultry_capacity = 9876 WHERE id = (SELECT MIN(id) FROM farms)")
+                  cur.execute("DROP VIEW midas.farms")
                   cur.execute(
                       """
-                      CREATE OR REPLACE VIEW midas.farms AS
+                      CREATE VIEW midas.farms AS
                       SELECT
                           id,
                           name,
