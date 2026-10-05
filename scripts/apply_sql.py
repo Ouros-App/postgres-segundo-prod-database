@@ -37,8 +37,21 @@ APPROVED_DESTRUCTIVE_STATEMENTS = {
         ),
     ),
     "remover_poultry_capacity_farms.sql": (
+        re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.farms\s*;", re.IGNORECASE),
         re.compile(
             r"\bALTER\s+TABLE\s+farms\s+DROP\s+COLUMN\s+IF\s+EXISTS\s+poultry_capacity\s*;",
+            re.IGNORECASE,
+        ),
+    ),
+    "remover_state_goal_farm_id_and_farms_place.sql": (
+        re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.farms\s*;", re.IGNORECASE),
+        re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.state_goals\s*;", re.IGNORECASE),
+        re.compile(
+            r"\bALTER\s+TABLE\s+state_goals\s+DROP\s+COLUMN\s+IF\s+EXISTS\s+id_farm\s*;",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bALTER\s+TABLE\s+farms\s+DROP\s+COLUMN\s+IF\s+EXISTS\s+place\s*;",
             re.IGNORECASE,
         ),
     ),

@@ -20,9 +20,9 @@ SELECT * FROM public.addresses;
 CREATE OR REPLACE VIEW midas.enterprises AS
 SELECT * FROM public.enterprises;
 
--- Preserve the existing Midas farms contract. Older installations may expose
--- poultry_capacity in the legacy contract; newer installations match public.farms.
--- Preserve updated_at in both shapes. Neither path depends on the removed column.
+-- Expose the current farms shape without the retired place column. Preserve an
+-- existing poultry_capacity output as NULL for legacy Midas clients.
+-- Preserve updated_at in both shapes. Neither path reads retired public columns.
 DO $$
 BEGIN
     IF to_regclass('midas.farms') IS NULL THEN
@@ -33,7 +33,6 @@ BEGIN
                 name,
                 area_property,
                 region,
-                place,
                 chickens_now,
                 foto_url,
                 id_address,
@@ -56,7 +55,6 @@ BEGIN
                 area_property,
                 region,
                 NULL::INTEGER AS poultry_capacity,
-                place,
                 chickens_now,
                 foto_url,
                 id_address,
@@ -72,7 +70,6 @@ BEGIN
                 name,
                 area_property,
                 region,
-                place,
                 chickens_now,
                 foto_url,
                 id_address,

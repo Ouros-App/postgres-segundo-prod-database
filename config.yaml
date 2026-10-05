@@ -44,6 +44,8 @@ database:
       mode: on_change
     - file: remover_poultry_capacity_farms.sql
       mode: once
+    - file: remover_state_goal_farm_id_and_farms_place.sql
+      mode: once
     - file: atualiza_lots_farm-owners.sql
       mode: once
     - file: atualiza_farms-chicken-left.sql

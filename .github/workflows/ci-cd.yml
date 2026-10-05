@@ -156,6 +156,11 @@ jobs:
           )
           with conn:
               with conn.cursor() as cur:
+                  cur.execute("DROP VIEW midas.farms")
+                  cur.execute(
+                      "CREATE VIEW midas.farms AS SELECT id, name, area_property, region, "
+                      "chickens_now, foto_url, id_address, id_enterprise, updated_at FROM public.farms"
+                  )
                   cur.execute(
                       "SELECT column_name FROM information_schema.columns "
                       "WHERE table_schema = 'midas' AND table_name = 'farms' "
@@ -163,7 +168,7 @@ jobs:
                   )
                   before = [row[0] for row in cur.fetchall()]
                   assert "poultry_capacity" not in before
-                  assert len(before) == 10
+                  assert len(before) == 9
                   cur.execute("ALTER TABLE farms ADD COLUMN poultry_capacity INTEGER")
                   cur.execute(
                       "DELETE FROM controle_scripts_sql "
@@ -187,7 +192,7 @@ jobs:
               )
               after = [row[0] for row in cur.fetchall()]
               assert "poultry_capacity" not in after
-              assert len(after) == 10
+              assert len(after) == 9
               cur.execute(
                   "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
                   "WHERE table_schema = 'public' AND table_name = 'farms' "
@@ -200,6 +205,8 @@ jobs:
       - name: Verify farms capacity migration on a legacy schema
         run: |
           python - <<'PY'
+          import json
+          from pathlib import Path
           import psycopg2
 
           conn = psycopg2.connect(
@@ -209,7 +216,23 @@ jobs:
           with conn:
               with conn.cursor() as cur:
                   cur.execute("ALTER TABLE farms ADD COLUMN poultry_capacity INTEGER")
+                  cur.execute("ALTER TABLE farms ADD COLUMN place VARCHAR(50)")
                   cur.execute("UPDATE farms SET poultry_capacity = 9876 WHERE id = (SELECT MIN(id) FROM farms)")
+                  cur.execute("ALTER TABLE state_goals ADD COLUMN id_farm INTEGER REFERENCES farms(id)")
+                  cur.execute(
+                      "SELECT sg.id, f.id FROM state_goals sg CROSS JOIN farms f "
+                      "WHERE NOT EXISTS (SELECT 1 FROM farm_goals fg "
+                      "WHERE fg.id_goal = sg.id AND fg.id_farm = f.id) LIMIT 1"
+                  )
+                  legacy_goal_id, legacy_farm_id = cur.fetchone()
+                  cur.execute(
+                      "UPDATE state_goals SET id_farm = %s WHERE id = %s",
+                      (legacy_farm_id, legacy_goal_id),
+                  )
+                  Path("/tmp/ouros-legacy-schema.json").write_text(
+                      json.dumps({"goal_id": legacy_goal_id, "farm_id": legacy_farm_id}),
+                      encoding="utf-8",
+                  )
                   cur.execute("DROP VIEW midas.farms")
                   cur.execute(
                       """
@@ -229,14 +252,19 @@ jobs:
                       FROM public.farms
                       """
                   )
+                  cur.execute("DROP VIEW midas.state_goals")
+                  cur.execute("CREATE VIEW midas.state_goals AS SELECT * FROM public.state_goals")
                   cur.execute(
                       "DELETE FROM controle_scripts_sql "
-                      "WHERE arquivo = 'remover_poultry_capacity_farms.sql'"
+                      "WHERE arquivo IN ('remover_poultry_capacity_farms.sql', "
+                      "'remover_state_goal_farm_id_and_farms_place.sql')"
                   )
           conn.close()
           PY
           python scripts/apply_sql.py
           python - <<'PY'
+          import json
+          from pathlib import Path
           import psycopg2
 
           conn = psycopg2.connect(
@@ -250,6 +278,13 @@ jobs:
                   "AND column_name = 'poultry_capacity')"
               )
               assert cur.fetchone()[0] is False, "farms.poultry_capacity was not removed"
+              for table, column in (("farms", "place"), ("state_goals", "id_farm")):
+                  cur.execute(
+                      "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                      "WHERE table_schema = 'public' AND table_name = %s AND column_name = %s)",
+                      (table, column),
+                  )
+                  assert cur.fetchone()[0] is False, f"{table}.{column} was not removed"
               cur.execute("SELECT to_regclass('midas.farms')")
               assert cur.fetchone()[0] == "midas.farms", "midas.farms view must be preserved"
               cur.execute(
@@ -260,9 +295,21 @@ jobs:
               legacy_columns = [row[0] for row in cur.fetchall()]
               assert legacy_columns == [
                   "id", "name", "area_property", "region", "poultry_capacity",
-                  "place", "chickens_now", "foto_url", "id_address",
+                  "chickens_now", "foto_url", "id_address",
                   "id_enterprise", "updated_at"
               ], f"unexpected Midas farms signature: {legacy_columns}"
+              cur.execute(
+                  "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                  "WHERE table_schema = 'midas' AND table_name = 'state_goals' "
+                  "AND column_name = 'id_farm')"
+              )
+              assert cur.fetchone()[0] is False, "midas.state_goals must not expose id_farm"
+              legacy = json.loads(Path("/tmp/ouros-legacy-schema.json").read_text(encoding="utf-8"))
+              cur.execute(
+                  "SELECT EXISTS (SELECT 1 FROM farm_goals WHERE id_farm = %s AND id_goal = %s)",
+                  (legacy["farm_id"], legacy["goal_id"]),
+              )
+              assert cur.fetchone()[0] is True, "legacy state_goals farm link was not preserved"
               cur.execute("SELECT poultry_capacity, updated_at FROM midas.farms LIMIT 1")
               capacity, _updated_at = cur.fetchone()
               assert capacity is None, "legacy Midas capacity field must remain compatible"
@@ -270,11 +317,13 @@ jobs:
               farm_id = cur.fetchone()[0]
               cur.execute("UPDATE farms SET chickens_now = chickens_now + 1 WHERE id = %s", (farm_id,))
               cur.execute(
-                  "SELECT poulty_capacity FROM farms_log WHERE id = %s "
+                  "SELECT poulty_capacity, place FROM farms_log WHERE id = %s "
                   "ORDER BY ctid DESC LIMIT 1",
                   (farm_id,),
               )
-              assert cur.fetchone()[0] is None, "new farm logs should not depend on the removed capacity column"
+              capacity, place = cur.fetchone()
+              assert capacity is None, "new farm logs should not depend on the removed capacity column"
+              assert place is None, "new farm logs should not depend on the removed farms.place column"
           conn.commit()
           conn.close()
           PY
@@ -415,7 +464,8 @@ jobs:
         run: |
           migration='sql/atualiza_tips_categories_relations.sql'
           farms_migration='sql/remover_poultry_capacity_farms.sql'
-          if find sql -type f -name '*.sql' ! -path "$migration" ! -path "$farms_migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
+          columns_migration='sql/remover_state_goal_farm_id_and_farms_place.sql'
+          if find sql -type f -name '*.sql' ! -path "$migration" ! -path "$farms_migration" ! -path "$columns_migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
             echo "Destructive SQL is forbidden"
             exit 1
           fi
@@ -423,7 +473,11 @@ jobs:
             echo "Unexpected destructive SQL in approved migration"
             exit 1
           fi
-          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$farms_migration" | grep -Ev 'ALTER TABLE farms DROP COLUMN IF EXISTS poultry_capacity;'; then
+          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$farms_migration" | grep -Ev 'DROP VIEW IF EXISTS midas\.farms;|ALTER TABLE farms DROP COLUMN IF EXISTS poultry_capacity;'; then
             echo "Unexpected destructive SQL in farms migration"
+            exit 1
+          fi
+          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$columns_migration" | grep -Ev 'DROP VIEW IF EXISTS midas\.(farms|state_goals);|ALTER TABLE (state_goals DROP COLUMN IF EXISTS id_farm|farms DROP COLUMN IF EXISTS place);'; then
+            echo "Unexpected destructive SQL in schema cleanup migration"
             exit 1
           fi

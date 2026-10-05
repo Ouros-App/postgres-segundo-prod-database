@@ -21,7 +21,6 @@ CREATE TABLE IF NOT EXISTS farms (
     name VARCHAR(100) NOT NULL CHECK(length(name) > 0),
     area_property NUMERIC NOT NULL CHECK(area_property > 0),
     region VARCHAR(50) NOT NULL CHECK(btrim(region) <> ''),
-    place VARCHAR(50) CHECK(length(place) > 0),
     chickens_now INTEGER NOT NULL DEFAULT 0
         CHECK (chickens_now >= 0),
     foto_url TEXT,
@@ -130,7 +129,6 @@ CREATE TABLE IF NOT EXISTS state_goals (
     title VARCHAR(50) NOT NULL CHECK(length(title) > 0),
     date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     date_end TIMESTAMP,
-    id_farm INTEGER REFERENCES farms(id) NOT NULL,
     CHECK (date_end >= date_creation)
 );
 
