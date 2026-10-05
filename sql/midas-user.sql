@@ -20,21 +20,66 @@ SELECT * FROM public.addresses;
 CREATE OR REPLACE VIEW midas.enterprises AS
 SELECT * FROM public.enterprises;
 
--- Keep the legacy poultry_capacity column in the Midas read contract without
--- depending on the removed physical column in public.farms.
-CREATE OR REPLACE VIEW midas.farms AS
-SELECT
-    id,
-    name,
-    area_property,
-    region,
-    NULL::INTEGER AS poultry_capacity,
-    place,
-    chickens_now,
-    foto_url,
-    id_address,
-    id_enterprise
-FROM public.farms;
+-- Preserve the existing Midas farms contract. Older installations may expose
+-- poultry_capacity as a tenth column; newer installations use the nine-column
+-- contract matching public.farms. Neither path depends on the removed column.
+DO $$
+BEGIN
+    IF to_regclass('midas.farms') IS NULL THEN
+        EXECUTE $view$
+            CREATE VIEW midas.farms AS
+            SELECT
+                id,
+                name,
+                area_property,
+                region,
+                place,
+                chickens_now,
+                foto_url,
+                id_address,
+                id_enterprise
+            FROM public.farms
+        $view$;
+    ELSIF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'midas'
+          AND table_name = 'farms'
+          AND column_name = 'poultry_capacity'
+    ) THEN
+        EXECUTE $view$
+            CREATE OR REPLACE VIEW midas.farms AS
+            SELECT
+                id,
+                name,
+                area_property,
+                region,
+                NULL::INTEGER AS poultry_capacity,
+                place,
+                chickens_now,
+                foto_url,
+                id_address,
+                id_enterprise
+            FROM public.farms
+        $view$;
+    ELSE
+        EXECUTE $view$
+            CREATE OR REPLACE VIEW midas.farms AS
+            SELECT
+                id,
+                name,
+                area_property,
+                region,
+                place,
+                chickens_now,
+                foto_url,
+                id_address,
+                id_enterprise
+            FROM public.farms
+        $view$;
+    END IF;
+END
+$$;
 
 CREATE OR REPLACE VIEW midas.tips AS
 SELECT id, tip FROM public.tips;
