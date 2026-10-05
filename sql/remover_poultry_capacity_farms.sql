@@ -27,7 +27,8 @@ BEGIN
                 chickens_now,
                 foto_url,
                 id_address,
-                id_enterprise
+                id_enterprise,
+                updated_at
             FROM public.farms
         $view$;
     END IF;
