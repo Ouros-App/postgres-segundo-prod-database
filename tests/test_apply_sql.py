@@ -136,6 +136,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("ms_auth_service.sql", "on_change", False),
                 ("triggers_logs.sql", "on_change", False),
                 ("remover_poultry_capacity_farms.sql", "once", False),
+                ("remover_state_goal_farm_id_and_farms_place.sql", "once", False),
                 ("atualiza_lots_farm-owners.sql", "once", False),
                 ("atualiza_farms-chicken-left.sql", "once", False),
                 ("atualiza_farm-owners-campos-opcionais.sql", "once", False),
@@ -253,6 +254,27 @@ class ApplySqlTest(unittest.TestCase):
             assert_safe_sql(
                 "ALTER TABLE farms DROP COLUMN IF EXISTS foto_url;",
                 "remover_poultry_capacity_farms.sql",
+            )
+
+    def test_state_goal_farm_id_and_farms_place_drop_is_allowlisted(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        identity = "remover_state_goal_farm_id_and_farms_place.sql"
+        content = (root / "sql" / identity).read_text(encoding="utf-8")
+        assert_safe_sql(content, identity)
+        for statement in (
+            "DROP VIEW IF EXISTS midas.farms;",
+            "DROP VIEW IF EXISTS midas.state_goals;",
+            "ALTER TABLE state_goals DROP COLUMN IF EXISTS id_farm;",
+            "ALTER TABLE farms DROP COLUMN IF EXISTS place;",
+            "INSERT INTO farm_goals (id_farm, id_goal)",
+            "ON CONFLICT (id_farm, id_goal) DO NOTHING;",
+            "GRANT SELECT ON TABLE midas.farms, midas.state_goals TO midas_ro;",
+        ):
+            self.assertIn(statement, content)
+        with self.assertRaisesRegex(RuntimeError, "SQL inseguro bloqueado"):
+            assert_safe_sql(
+                "ALTER TABLE farms DROP COLUMN IF EXISTS foto_url;",
+                identity,
             )
 
     def test_procedures_sql_definitions(self) -> None:

@@ -2,9 +2,8 @@
 -- A migration precisa funcionar tanto em bancos existentes quanto em bootstrap limpo.
 CREATE SCHEMA IF NOT EXISTS midas;
 
--- Somente views legadas que ainda expõem poultry_capacity precisam ser ajustadas.
--- Views modernas de nove colunas já não dependem da coluna física e são preservadas
--- exatamente como estão.
+-- Views legadas que expõem poultry_capacity são recriadas pela migration de
+-- compatibilidade seguinte, depois que as colunas antigas de farms forem removidas.
 DO $$
 BEGIN
     IF to_regclass('midas.farms') IS NOT NULL
@@ -15,22 +14,7 @@ BEGIN
              AND table_name = 'farms'
              AND column_name = 'poultry_capacity'
        ) THEN
-        EXECUTE $view$
-            CREATE OR REPLACE VIEW midas.farms AS
-            SELECT
-                id,
-                name,
-                area_property,
-                region,
-                NULL::INTEGER AS poultry_capacity,
-                place,
-                chickens_now,
-                foto_url,
-                id_address,
-                id_enterprise,
-                updated_at
-            FROM public.farms
-        $view$;
+        DROP VIEW IF EXISTS midas.farms;
     END IF;
 END
 $$;

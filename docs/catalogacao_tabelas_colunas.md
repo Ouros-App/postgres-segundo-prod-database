@@ -42,7 +42,6 @@ Cadastro das fazendas vinculadas a uma empresa e a um endereço.
 | `name` | `VARCHAR(100) NOT NULL` | Nome da fazenda. |
 | `area_property` | `NUMERIC NOT NULL`, maior que zero | Área da propriedade. A unidade não é especificada no DDL. |
 | `region` | `VARCHAR(50) NOT NULL` | Região da fazenda; não pode ser vazia após remoção de espaços laterais. |
-| `place` | `VARCHAR(50)`, aceita `NULL` | Localidade ou nome do lugar. Se preenchido, não pode ser vazio. |
 | `chickens_now` | `INTEGER NOT NULL DEFAULT 0`, mínimo zero | Quantidade atual de galinhas/aves na fazenda. |
 | `foto_url` | `TEXT`, aceita `NULL` | URL ou referência da foto da fazenda. |
 | `id_address` | `INTEGER NOT NULL`, FK → `addresses.id` | Endereço da fazenda. |
@@ -178,7 +177,7 @@ Metas individuais configuradas para uma fazenda.
 
 ### `state_goals`
 
-Metas de abrangência estadual, vinculadas a uma fazenda conforme o DDL atual.
+Metas de abrangência estadual. A associação com fazendas é mantida pela tabela de ligação `farm_goals`.
 
 | Coluna | Tipo e regras | Descrição |
 |---|---|---|
@@ -190,7 +189,6 @@ Metas de abrangência estadual, vinculadas a uma fazenda conforme o DDL atual.
 | `title` | `VARCHAR(50) NOT NULL` | Título da meta; não pode ser vazio. |
 | `date_creation` | `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` | Data e hora de criação. |
 | `date_end` | `TIMESTAMP`, aceita `NULL` | Prazo final; quando preenchido, deve ser igual ou posterior à criação. |
-| `id_farm` | `INTEGER NOT NULL`, FK → `farms.id` | Fazenda vinculada à meta. |
 
 ### `regions_goals`
 
@@ -323,7 +321,6 @@ Cópia histórica parcial dos dados de uma fazenda. O DDL contém nomes legados 
 | `area_property` | `DOUBLE PRECISION`, aceita `NULL` | Área copiada da fazenda. |
 | `region` | `VARCHAR`, aceita `NULL` | Região da fazenda. |
 | `poulty_capacity` | `INTEGER`, aceita `NULL` | Coluna histórica com esse nome no DDL; mantém uma grafia legada e não corresponde a uma coluna atual de `farms`. |
-| `place` | `VARCHAR`, aceita `NULL` | Localidade da fazenda. |
 | `chickens_now` | `INTEGER`, aceita `NULL` | Quantidade atual de aves registrada. |
 | `id_adress` | `INTEGER`, aceita `NULL` | ID do endereço; nome histórico com grafia distinta de `farms.id_address`. |
 | `id_enterprise` | `INTEGER`, aceita `NULL` | ID da empresa associada. |
@@ -392,6 +389,7 @@ Relaciona uma role de banco de dados autorizada ao proprietário de fazenda que 
 
 - `enterprises` e `farms` apontam para `addresses`; cada fazenda também aponta para uma empresa.
 - `farm_owners`, registros de água/energia, lotes, saídas de aves e metas individuais relacionam-se a fazendas.
+- `farm_goals` associa fazendas a metas estaduais; os vínculos antigos de `state_goals.id_farm` são transferidos para essa tabela pela migração antes da remoção da coluna.
 - `reviews` aponta para uma dica; `tip_categories` liga dicas a categorias; `farms_tips` liga dicas a fazendas.
 - `enterprise_plans` liga empresas e planos; `payments` referencia a contratação composta por empresa e plano.
 - Metas estaduais relacionam-se a regiões por `regions_goals` e `state_goal_regions`; `farm_goals` associa fazendas às metas.
@@ -401,5 +399,6 @@ Relaciona uma role de banco de dados autorizada ao proprietário de fazenda que 
 
 - A documentação é derivada dos scripts versionados no repositório. Migrações históricas podem conter diferenças temporárias de estrutura; a configuração atual e o DDL principal indicam o esquema esperado após a aplicação dos scripts.
 - A tabela `farms_log` conserva `poulty_capacity` e `id_adress` como nomes históricos, apesar de não corresponderem às colunas atuais da tabela `farms`.
+- `farms_log.place` também é conservada como dado histórico; novos registros gerados pelo gatilho de fazendas deixam essa coluna legada sem valor.
 - A grafia `losts` é a que está definida no esquema para a quantidade de perdas do lote.
 - Descrições de unidades só são informadas quando aparecem explicitamente nos scripts SQL; não se inferem unidades ausentes do DDL.
