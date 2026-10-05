@@ -20,8 +20,21 @@ SELECT * FROM public.addresses;
 CREATE OR REPLACE VIEW midas.enterprises AS
 SELECT * FROM public.enterprises;
 
+-- Keep the legacy poultry_capacity column in the Midas read contract without
+-- depending on the removed physical column in public.farms.
 CREATE OR REPLACE VIEW midas.farms AS
-SELECT * FROM public.farms;
+SELECT
+    id,
+    name,
+    area_property,
+    region,
+    NULL::INTEGER AS poultry_capacity,
+    place,
+    chickens_now,
+    foto_url,
+    id_address,
+    id_enterprise
+FROM public.farms;
 
 CREATE OR REPLACE VIEW midas.tips AS
 SELECT id, tip FROM public.tips;
