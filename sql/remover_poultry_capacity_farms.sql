@@ -1,4 +1,7 @@
 -- Remove a capacidade de aves do cadastro de fazendas sem quebrar consumidores.
+-- A migration precisa funcionar tanto em bancos existentes quanto em bootstrap limpo.
+CREATE SCHEMA IF NOT EXISTS midas;
+
 -- midas.farms preserva a coluna no contrato legado, mas passa a servi-la como NULL,
 -- eliminando a dependencia da view sobre public.farms.poultry_capacity.
 CREATE OR REPLACE VIEW midas.farms AS
