@@ -21,8 +21,8 @@ CREATE OR REPLACE VIEW midas.enterprises AS
 SELECT * FROM public.enterprises;
 
 -- Preserve the existing Midas farms contract. Older installations may expose
--- poultry_capacity as a tenth column; newer installations use the nine-column
--- contract matching public.farms. Neither path depends on the removed column.
+-- poultry_capacity in the legacy contract; newer installations match public.farms.
+-- Preserve updated_at in both shapes. Neither path depends on the removed column.
 DO $$
 BEGIN
     IF to_regclass('midas.farms') IS NULL THEN
@@ -37,7 +37,8 @@ BEGIN
                 chickens_now,
                 foto_url,
                 id_address,
-                id_enterprise
+                id_enterprise,
+                updated_at
             FROM public.farms
         $view$;
     ELSIF EXISTS (
@@ -59,7 +60,8 @@ BEGIN
                 chickens_now,
                 foto_url,
                 id_address,
-                id_enterprise
+                id_enterprise,
+                updated_at
             FROM public.farms
         $view$;
     ELSE
@@ -74,7 +76,8 @@ BEGIN
                 chickens_now,
                 foto_url,
                 id_address,
-                id_enterprise
+                id_enterprise,
+                updated_at
             FROM public.farms
         $view$;
     END IF;
