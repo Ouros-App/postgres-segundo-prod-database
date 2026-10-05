@@ -159,6 +159,23 @@ jobs:
                   cur.execute("ALTER TABLE farms ADD COLUMN poultry_capacity INTEGER")
                   cur.execute("UPDATE farms SET poultry_capacity = 9876 WHERE id = (SELECT MIN(id) FROM farms)")
                   cur.execute(
+                      """
+                      CREATE OR REPLACE VIEW midas.farms AS
+                      SELECT
+                          id,
+                          name,
+                          area_property,
+                          region,
+                          poultry_capacity,
+                          place,
+                          chickens_now,
+                          foto_url,
+                          id_address,
+                          id_enterprise
+                      FROM public.farms
+                      """
+                  )
+                  cur.execute(
                       "DELETE FROM controle_scripts_sql "
                       "WHERE arquivo = 'remover_poultry_capacity_farms.sql'"
                   )
@@ -179,6 +196,10 @@ jobs:
                   "AND column_name = 'poultry_capacity')"
               )
               assert cur.fetchone()[0] is False, "farms.poultry_capacity was not removed"
+              cur.execute("SELECT to_regclass('midas.farms')")
+              assert cur.fetchone()[0] == "midas.farms", "midas.farms view must be preserved"
+              cur.execute("SELECT poultry_capacity FROM midas.farms LIMIT 1")
+              assert cur.fetchone()[0] is None, "legacy Midas capacity field must remain compatible"
               cur.execute("SELECT id FROM farms ORDER BY id LIMIT 1")
               farm_id = cur.fetchone()[0]
               cur.execute("UPDATE farms SET chickens_now = chickens_now + 1 WHERE id = %s", (farm_id,))
