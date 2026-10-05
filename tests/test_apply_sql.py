@@ -124,6 +124,7 @@ class ApplySqlTest(unittest.TestCase):
             [(path.name, mode, baseline_query is not None) for path, mode, baseline_query in entries],
             [
                 ("banco_ouros_fisico.sql", "on_change", False),
+                ("nullable_legacy_missing_columns.sql", "once", False),
                 ("indices_consulta_registros.sql", "once", False),
                 ("atualiza_tips_categories_relations.sql", "once", False),
                 ("procedures.sql", "on_change", False),

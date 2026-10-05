@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS farms (
     name VARCHAR(100) NOT NULL CHECK(length(name) > 0),
     area_property NUMERIC NOT NULL CHECK(area_property > 0),
     region VARCHAR(50) NOT NULL CHECK(btrim(region) <> ''),
-    place VARCHAR(50) NOT NULL CHECK(length(place) > 0),
+    place VARCHAR(50) CHECK(length(place) > 0),
     chickens_now INTEGER NOT NULL DEFAULT 0
         CHECK (chickens_now >= 0),
     foto_url TEXT,
@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS company_employees (
     document_number VARCHAR(11) UNIQUE NOT NULL CHECK (length(document_number) = 11),
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
     telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
-    password TEXT NOT NULL CHECK(length(password) > 0),
+    password TEXT CHECK(length(password) > 0),
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL
 );
 
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS state_goals (
     target_value NUMERIC NOT NULL CHECK(target_value > 0),
     title VARCHAR(50) NOT NULL CHECK(length(title) > 0),
     date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    date_end TIMESTAMP NOT NULL,
+    date_end TIMESTAMP,
     id_farm INTEGER REFERENCES farms(id) NOT NULL,
     CHECK (date_end >= date_creation)
 );
