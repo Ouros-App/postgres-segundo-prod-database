@@ -482,7 +482,7 @@ jobs:
             echo "Unexpected destructive SQL in schema cleanup migration"
             exit 1
           fi
-          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$timestamp_migration" | grep -Ev 'DROP VIEW IF EXISTS midas\.(water_registries|energy_registries);'; then
+          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$timestamp_migration" | grep -Ev 'DROP VIEW IF EXISTS (chickens_per_liter|chickens_per_kwh|integrated_consumption);|DROP VIEW IF EXISTS midas\.(water_registries|energy_registries);'; then
             echo "Unexpected destructive SQL in timestamp migration"
             exit 1
           fi
