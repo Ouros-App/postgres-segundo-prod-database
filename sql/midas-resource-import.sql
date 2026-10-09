@@ -59,7 +59,7 @@ DECLARE
     v_item JSONB;
     v_index INTEGER;
     v_resource TEXT;
-    v_registration_date TIMESTAMP WITHOUT TIME ZONE;
+    v_registration_date TIMESTAMP;
     v_start NUMERIC;
     v_end NUMERIC;
     v_energy NUMERIC;
@@ -103,7 +103,7 @@ BEGIN
                OR (v_item->>'farm_id')::INTEGER IS DISTINCT FROM v_farm_id THEN
                 RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'INVALID_VALUE';
             END IF;
-            v_registration_date := (v_item->>'registration_date')::TIMESTAMP WITHOUT TIME ZONE;
+            v_registration_date := (v_item->>'registration_date')::TIMESTAMP;
             IF v_resource = 'water' THEN
                 v_start := (v_item->>'start_hydrometer')::NUMERIC;
                 v_end := (v_item->>'end_hydrometer')::NUMERIC;

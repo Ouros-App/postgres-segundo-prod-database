@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS individual_goals (
 
 CREATE TABLE IF NOT EXISTS water_registries (
     id SERIAL PRIMARY KEY,
-    registration_date TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    registration_date TIMESTAMP NOT NULL,
     start_hydrometer NUMERIC NOT NULL CHECK(start_hydrometer > 0),
     end_hydrometer NUMERIC NOT NULL CHECK(end_hydrometer > 0),
     id_farm INTEGER REFERENCES farms(id) NOT NULL,
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS water_registries (
 
 CREATE TABLE IF NOT EXISTS energy_registries (
     id SERIAL PRIMARY KEY,
-    registration_date TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    registration_date TIMESTAMP NOT NULL,
     energy_consumption NUMERIC NOT NULL CHECK(energy_consumption > 0),
     id_farm INTEGER REFERENCES farms(id) NOT NULL
 );
