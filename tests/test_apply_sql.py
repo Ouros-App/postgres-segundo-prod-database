@@ -125,6 +125,7 @@ class ApplySqlTest(unittest.TestCase):
             [
                 ("banco_ouros_fisico.sql", "on_change", False),
                 ("nullable_legacy_missing_columns.sql", "once", False),
+                ("rpa_nullable_fields.sql", "once", False),
                 ("indices_consulta_registros.sql", "once", False),
                 ("atualiza_tips_categories_relations.sql", "once", False),
                 ("procedures.sql", "on_change", False),
@@ -146,6 +147,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("dataload_lots_farm-owners.sql", "never", False),
                 ("atualiza_password.sql", "once", False),
                 ("midas-user.sql", "on_change", False),
+                ("rpa_preservar_timestamps.sql", "once", False),
                 ("midas-resource-import.sql", "on_change", False),
             ],
         )
