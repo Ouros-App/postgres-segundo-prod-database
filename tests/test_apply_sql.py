@@ -125,6 +125,7 @@ class ApplySqlTest(unittest.TestCase):
             [
                 ("banco_ouros_fisico.sql", "on_change", False),
                 ("nullable_legacy_missing_columns.sql", "once", False),
+                ("rpa_nullable_fields.sql", "once", False),
                 ("indices_consulta_registros.sql", "once", False),
                 ("atualiza_tips_categories_relations.sql", "once", False),
                 ("procedures.sql", "on_change", False),
@@ -146,6 +147,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("dataload_lots_farm-owners.sql", "never", False),
                 ("atualiza_password.sql", "once", False),
                 ("midas-user.sql", "on_change", False),
+                ("rpa_preservar_timestamps.sql", "once", False),
                 ("midas-resource-import.sql", "on_change", False),
             ],
         )
@@ -276,6 +278,25 @@ class ApplySqlTest(unittest.TestCase):
                 "ALTER TABLE farms DROP COLUMN IF EXISTS foto_url;",
                 identity,
             )
+
+    def test_timestamp_migration_view_drops_are_allowlisted(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        identity = "rpa_preservar_timestamps.sql"
+        content = (root / "sql" / identity).read_text(encoding="utf-8")
+        assert_safe_sql(content, identity)
+        for statement in (
+            "DROP VIEW IF EXISTS chickens_per_liter;",
+            "DROP VIEW IF EXISTS chickens_per_kwh;",
+            "DROP VIEW IF EXISTS integrated_consumption;",
+            "DROP VIEW IF EXISTS midas.water_registries;",
+            "DROP VIEW IF EXISTS midas.energy_registries;",
+            "CREATE VIEW chickens_per_liter AS",
+            "CREATE VIEW chickens_per_kwh AS",
+            "CREATE VIEW integrated_consumption AS",
+        ):
+            self.assertIn(statement, content)
+        with self.assertRaisesRegex(RuntimeError, "SQL inseguro bloqueado"):
+            assert_safe_sql("DROP VIEW IF EXISTS unrelated_view;", identity)
 
     def test_procedures_sql_definitions(self) -> None:
         """Keep procedures configured with inout return ids and valid constraint references."""

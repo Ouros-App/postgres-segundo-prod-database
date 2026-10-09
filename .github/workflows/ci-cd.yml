@@ -465,7 +465,8 @@ jobs:
           migration='sql/atualiza_tips_categories_relations.sql'
           farms_migration='sql/remover_poultry_capacity_farms.sql'
           columns_migration='sql/remover_state_goal_farm_id_and_farms_place.sql'
-          if find sql -type f -name '*.sql' ! -path "$migration" ! -path "$farms_migration" ! -path "$columns_migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
+          timestamp_migration='sql/rpa_preservar_timestamps.sql'
+          if find sql -type f -name '*.sql' ! -path "$migration" ! -path "$farms_migration" ! -path "$columns_migration" ! -path "$timestamp_migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
             echo "Destructive SQL is forbidden"
             exit 1
           fi
@@ -479,5 +480,9 @@ jobs:
           fi
           if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$columns_migration" | grep -Ev 'DROP VIEW IF EXISTS midas\.(farms|state_goals);|ALTER TABLE (state_goals DROP COLUMN IF EXISTS id_farm|farms DROP COLUMN IF EXISTS place);'; then
             echo "Unexpected destructive SQL in schema cleanup migration"
+            exit 1
+          fi
+          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$timestamp_migration" | grep -Ev 'DROP VIEW IF EXISTS (chickens_per_liter|chickens_per_kwh|integrated_consumption);|DROP VIEW IF EXISTS midas\.(water_registries|energy_registries);'; then
+            echo "Unexpected destructive SQL in timestamp migration"
             exit 1
           fi

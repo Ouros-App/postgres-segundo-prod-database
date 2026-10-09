@@ -22,6 +22,8 @@ database:
       mode: on_change
     - file: nullable_legacy_missing_columns.sql
       mode: once
+    - file: rpa_nullable_fields.sql
+      mode: once
     - file: indices_consulta_registros.sql
       mode: once
     - file: atualiza_tips_categories_relations.sql
@@ -80,5 +82,7 @@ database:
       mode: once
     - file: midas-user.sql
       mode: on_change
+    - file: rpa_preservar_timestamps.sql
+      mode: once
     - file: midas-resource-import.sql
       mode: on_change

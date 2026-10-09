@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS individual_goals (
 
 CREATE TABLE IF NOT EXISTS water_registries (
     id SERIAL PRIMARY KEY,
-    registration_date DATE NOT NULL,
+    registration_date TIMESTAMP NOT NULL,
     start_hydrometer NUMERIC NOT NULL CHECK(start_hydrometer > 0),
     end_hydrometer NUMERIC NOT NULL CHECK(end_hydrometer > 0),
     id_farm INTEGER REFERENCES farms(id) NOT NULL,
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS water_registries (
 
 CREATE TABLE IF NOT EXISTS energy_registries (
     id SERIAL PRIMARY KEY,
-    registration_date DATE NOT NULL,
+    registration_date TIMESTAMP NOT NULL,
     energy_consumption NUMERIC NOT NULL CHECK(energy_consumption > 0),
     id_farm INTEGER REFERENCES farms(id) NOT NULL
 );
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS lots (
     id SERIAL PRIMARY KEY,
     received_chickens INTEGER NOT NULL CHECK (received_chickens >= 0),
     delivered_chickens INTEGER NOT NULL CHECK (delivered_chickens >= 0),
-    delivery_date DATE NOT NULL,
+    delivery_date DATE,
     losts INTEGER NOT NULL DEFAULT 0 CHECK (losts >= 0),
     cost DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (cost >= 0),
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL,
@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS company_employees (
     name VARCHAR(100) NOT NULL CHECK(length(name) > 0),
     document_number VARCHAR(11) UNIQUE NOT NULL CHECK (length(document_number) = 11),
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
-    telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
+    telephone VARCHAR(13) CHECK(length(telephone) > 9),
     password TEXT CHECK(length(password) > 0),
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL
 );
