@@ -55,6 +55,10 @@ APPROVED_DESTRUCTIVE_STATEMENTS = {
             re.IGNORECASE,
         ),
     ),
+    "rpa_preservar_timestamps.sql": (
+        re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.water_registries\s*;", re.IGNORECASE),
+        re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.energy_registries\s*;", re.IGNORECASE),
+    ),
 }
 CORE_TABLES = (
     "addresses",

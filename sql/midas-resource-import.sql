@@ -59,7 +59,7 @@ DECLARE
     v_item JSONB;
     v_index INTEGER;
     v_resource TEXT;
-    v_date DATE;
+    v_registration_date TIMESTAMP WITHOUT TIME ZONE;
     v_start NUMERIC;
     v_end NUMERIC;
     v_energy NUMERIC;
@@ -103,18 +103,18 @@ BEGIN
                OR (v_item->>'farm_id')::INTEGER IS DISTINCT FROM v_farm_id THEN
                 RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'INVALID_VALUE';
             END IF;
-            v_date := (v_item->>'registration_date')::DATE;
+            v_registration_date := (v_item->>'registration_date')::TIMESTAMP WITHOUT TIME ZONE;
             IF v_resource = 'water' THEN
                 v_start := (v_item->>'start_hydrometer')::NUMERIC;
                 v_end := (v_item->>'end_hydrometer')::NUMERIC;
                 IF v_start <= 0 OR v_end <= 0 OR v_end < v_start THEN RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'INVALID_VALUE'; END IF;
                 INSERT INTO public.water_registries (registration_date, start_hydrometer, end_hydrometer, id_farm)
-                VALUES (v_date, v_start, v_end, v_farm_id) ON CONFLICT DO NOTHING;
+                VALUES (v_registration_date, v_start, v_end, v_farm_id) ON CONFLICT DO NOTHING;
             ELSE
                 v_energy := (v_item->>'energy_consumption')::NUMERIC;
                 IF v_energy <= 0 THEN RAISE EXCEPTION USING ERRCODE = 'P0002', MESSAGE = 'INVALID_VALUE'; END IF;
                 INSERT INTO public.energy_registries (registration_date, energy_consumption, id_farm)
-                VALUES (v_date, v_energy, v_farm_id) ON CONFLICT DO NOTHING;
+                VALUES (v_registration_date, v_energy, v_farm_id) ON CONFLICT DO NOTHING;
             END IF;
             IF FOUND THEN v_inserted := v_inserted + 1; ELSE v_skipped := v_skipped + 1; END IF;
         EXCEPTION WHEN SQLSTATE 'P0002' THEN
