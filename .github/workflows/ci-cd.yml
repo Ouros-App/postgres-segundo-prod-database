@@ -267,7 +267,6 @@ jobs:
                       FROM public.farms
                       """
                   )
-                  cur.execute("DROP VIEW midas.state_goals")
                   cur.execute("CREATE VIEW midas.state_goals AS SELECT * FROM public.state_goals")
                   cur.execute("CREATE VIEW midas.farm_goals AS SELECT * FROM public.farm_goals")
                   cur.execute(
