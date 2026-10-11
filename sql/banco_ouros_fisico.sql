@@ -124,7 +124,6 @@ CREATE TABLE IF NOT EXISTS state_goals (
     id SERIAL PRIMARY KEY,
     description TEXT,
     type VARCHAR(50) NOT NULL CHECK(length(type) > 0),
-    status VARCHAR(40) NOT NULL CHECK(length(status) > 0),
     target_value NUMERIC NOT NULL CHECK(target_value > 0),
     title VARCHAR(50) NOT NULL CHECK(length(title) > 0),
     date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -142,6 +141,8 @@ CREATE TABLE IF NOT EXISTS farm_goals (
     id SERIAL PRIMARY KEY,
     id_farm INTEGER NOT NULL REFERENCES farms(id),
     id_goal INTEGER NOT NULL REFERENCES state_goals(id),
+    status VARCHAR(40) NOT NULL DEFAULT 'Pendente',
+    CONSTRAINT farm_goals_status_nonempty CHECK(length(status) > 0),
     UNIQUE (id_farm, id_goal)
 );
 

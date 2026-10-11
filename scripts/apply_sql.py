@@ -55,6 +55,22 @@ APPROVED_DESTRUCTIVE_STATEMENTS = {
             re.IGNORECASE,
         ),
     ),
+    "move_state_goal_status_to_farm_goals.sql": (
+        re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.state_goals\s*;", re.IGNORECASE),
+        re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.farm_goals\s*;", re.IGNORECASE),
+        re.compile(
+            r"\bUPDATE\s+farm_goals\s+fg\s+SET\s+status\s*=\s*sg\.status\s+FROM\s+state_goals\s+sg\s+WHERE\s+sg\.id\s*=\s*fg\.id_goal\s+AND\s+fg\.status\s+IS\s+NULL\s*;",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bUPDATE\s+farm_goals\s+SET\s+status\s*=\s*'Pendente'\s+WHERE\s+status\s+IS\s+NULL\s*;",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bALTER\s+TABLE\s+state_goals\s+DROP\s+COLUMN\s+IF\s+EXISTS\s+status\s*;",
+            re.IGNORECASE,
+        ),
+    ),
     "rpa_preservar_timestamps.sql": (
         re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+chickens_per_liter\s*;", re.IGNORECASE),
         re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+chickens_per_kwh\s*;", re.IGNORECASE),

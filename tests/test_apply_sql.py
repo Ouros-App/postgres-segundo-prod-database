@@ -124,6 +124,7 @@ class ApplySqlTest(unittest.TestCase):
             [(path.name, mode, baseline_query is not None) for path, mode, baseline_query in entries],
             [
                 ("banco_ouros_fisico.sql", "on_change", False),
+                ("move_state_goal_status_to_farm_goals.sql", "once", False),
                 ("nullable_legacy_missing_columns.sql", "once", False),
                 ("rpa_nullable_fields.sql", "once", False),
                 ("indices_consulta_registros.sql", "once", False),
@@ -279,6 +280,29 @@ class ApplySqlTest(unittest.TestCase):
                 identity,
             )
 
+    def test_state_goal_status_move_is_allowlisted(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        identity = "move_state_goal_status_to_farm_goals.sql"
+        content = (root / "sql" / identity).read_text(encoding="utf-8")
+        assert_safe_sql(content, identity)
+        for statement in (
+            "DROP VIEW IF EXISTS midas.state_goals;",
+            "DROP VIEW IF EXISTS midas.farm_goals;",
+            "UPDATE farm_goals fg",
+            "SET status = sg.status",
+            "UPDATE farm_goals",
+            "SET status = 'Pendente'",
+            "ALTER TABLE state_goals DROP COLUMN IF EXISTS status;",
+            "GRANT SELECT ON TABLE midas.state_goals, midas.farm_goals TO midas_ro;",
+        ):
+            self.assertIn(statement, content)
+        with self.assertRaisesRegex(RuntimeError, "SQL inseguro bloqueado"):
+            assert_safe_sql(
+                "UPDATE farm_goals SET status = 'Concluída';\n"
+                "ALTER TABLE state_goals DROP COLUMN IF EXISTS title;",
+                identity,
+            )
+
     def test_timestamp_migration_view_drops_are_allowlisted(self) -> None:
         root = Path(__file__).resolve().parents[1]
         identity = "rpa_preservar_timestamps.sql"
@@ -307,6 +331,9 @@ class ApplySqlTest(unittest.TestCase):
         self.assertIn("INOUT p_goal_id INTEGER DEFAULT NULL", content)
         self.assertIn("p_region VARCHAR(50)", content)
         self.assertIn("id_farm", content)
+        self.assertIn("INSERT INTO farm_goals (id_farm, id_goal, status)", content)
+        goal_insert = content.split("INSERT INTO state_goals (", 1)[1].split(")", 1)[0]
+        self.assertNotIn("status", goal_insert)
 
     def test_destructive_automatic_sql_is_rejected(self) -> None:
         unsafe = [
