@@ -132,7 +132,6 @@ class ApplySqlTest(unittest.TestCase):
                 ("reconcile_farm_owners_first_access.sql", "on_change", False),
                 ("funcoes_consumo_metas.sql", "on_change", False),
                 ("atualiza_updated_at_analytics.sql", "on_change", False),
-                ("analytics_sync_user.sql", "on_change", False),
                 ("keycloak_user_link.sql", "on_change", False),
                 ("ms_auth_service.sql", "on_change", False),
                 ("triggers_logs.sql", "on_change", False),
@@ -149,6 +148,8 @@ class ApplySqlTest(unittest.TestCase):
                 ("midas-user.sql", "on_change", False),
                 ("rpa_preservar_timestamps.sql", "once", False),
                 ("midas-resource-import.sql", "on_change", False),
+                ("views_analytics.sql", "on_change", False),
+                ("analytics_sync_user.sql", "on_change", False),
             ],
         )
 

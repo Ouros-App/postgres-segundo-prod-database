@@ -33,8 +33,65 @@ O executor também mantém a tabela `controle_scripts_sql`, com checksum, commit
 
 As tabelas usadas pelo banco analítico recebem `updated_at` automaticamente por
 `sql/atualiza_updated_at_analytics.sql`. O role `analytics_sync_ro` pode ler
-somente essas tabelas para alimentar o banco analítico; sua senha deve ser
-configurada fora do repositório.
+as tabelas autorizadas e as views analíticas descritas abaixo; sua senha deve
+ser configurada fora do repositório. As novas views não são expostas
+automaticamente ao role `midas_ro`.
+
+## Views analíticas
+
+`sql/views_analytics.sql` cria cinco views comuns no schema `public`:
+
+- `water_monthly`: uma linha por granja e mês com leituras de água; inclui consumo, acumulado anual, comparação com o mês consecutivo anterior, posição de consumo na empresa e quantidade de leituras.
+- `energy_monthly`: os mesmos indicadores para energia.
+- `integrated_monthly`: uma linha por granja e mês em que água ou energia foi registrada; mantém o recurso ausente como `NULL`, informa flags de disponibilidade e calcula totais, participações e rankings por recurso.
+- `goals_progress`: uma linha para cada granja, inclusive sem metas; reproduz a pontuação de `calculate_goals_progress` e discrimina metas desconhecidas.
+- `payments_monthly`: uma linha por empresa e mês com pagamentos registrados, acumulado anual, comparação consecutiva e posição mensal entre empresas.
+
+Exemplo de consulta para um dashboard por empresa:
+
+```sql
+SELECT
+    id_farm,
+    month,
+    water_consumed,
+    previous_month_water_consumed,
+    water_change_pct,
+    water_consumption_rank
+FROM public.water_monthly
+WHERE id_enterprise = 42
+  AND month >= DATE '2025-01-01'
+  AND month < DATE '2026-01-01'
+ORDER BY month, id_farm;
+```
+
+Os meses são datas do primeiro dia do mês. As views mensais excluem o mês em
+andamento e registros futuros com base em `CURRENT_DATE` da sessão. Os
+timestamps são usados sem conversão de fuso; configure a timezone esperada pela
+organização na conexão do BI. Meses sem registros não criam linhas, então o
+acumulado soma apenas os valores registrados disponíveis. As colunas de
+comparação retornam `NULL` se faltar o mês imediatamente anterior ou se o
+valor anterior for zero.
+
+Os rankings usam `DENSE_RANK` decrescente por empresa e mês (ou, em pagamentos,
+entre empresas no mês). Eles medem volume registrado, não eficiência. Como as
+funções de janela são calculadas na view, filtros externos por granja preservam
+o rank, e filtros por período preservam o acumulado anual calculado desde o
+início do ano. Empresa e região são o cadastro atual da granja e podem
+reclassificar períodos históricos após uma alteração cadastral.
+
+Em `goals_progress`, metas concluídas pontuam 100, em andamento 50 e pendentes
+ou com status desconhecido 0. Uma meta compartilhada conta uma vez por granja
+vinculada. Sem metas, a view expõe `goals_count = 0`, `progress_pct = NULL` e
+ranks nulos; a função existente `calculate_goals_progress` continua retornando
+zero nesse caso. `target_value` não é convertido em percentual de cumprimento,
+pois o esquema não registra a medida alcançada.
+
+`payments_value` é a soma de `payments.value` registrada, sem confirmação de
+liquidação. Água e energia permanecem indicadores separados; não há índice
+combinado nem divisão por `farms.chickens_now`, que representa o estoque atual.
+O role `analytics_sync_ro` tem leitura explícita nas cinco views. O script de
+permissões é executado depois delas e revoga acessos anteriores antes de
+reconceder a lista aprovada.
 
 ## Pré-requisitos
 
