@@ -93,6 +93,52 @@ O role `analytics_sync_ro` tem leitura explícita nas cinco views. O script de
 permissões é executado depois delas e revoga acessos anteriores antes de
 reconceder a lista aprovada.
 
+## RPA de importação do banco pré
+
+O script `scripts/rpa_pre_novo.py` implementa a importação planejada do banco
+pré para o esquema atual do Ouros. Configure as variáveis `RPA_SOURCE_*` e
+`RPA_TARGET_*` no `.env`; mantenha credenciais fora do Git.
+`RPA_SOURCE_SYSTEM` identifica de forma estável a origem usada no mapa
+persistente de IDs.
+
+Antes da carga, rode diagnóstico, simulação e reconciliação pré-carga. Os
+relatórios JSON são compatíveis entre si e não incluem campos de negócio nem
+credenciais; os detalhes pendentes incluem os IDs legados para auditoria:
+
+```bash
+python scripts/rpa_pre_novo.py diagnose --report reports/rpa-pre-novo-diagnose.json
+python scripts/rpa_pre_novo.py simulate --report reports/rpa-pre-novo-simulation.json
+python scripts/rpa_pre_novo.py reconcile --before-load \
+  --simulation-report reports/rpa-pre-novo-simulation.json \
+  --report reports/rpa-pre-novo-reconciliation.json
+```
+
+`simulate` executa as mesmas regras da carga dentro de uma transação revertida,
+usa IDs temporários negativos e não avança as sequences do destino. Verifique
+os itens pendentes nos relatórios e confirme que as migrations aprovadas foram
+aplicadas no banco de destino. A carga real é separada e exige a confirmação
+literal do banco, além dos três relatórios:
+
+```bash
+python scripts/rpa_pre_novo.py load \
+  --confirm-load \
+  --expected-target-db NOME_EXATO_DO_BANCO \
+  --diagnostic-report reports/rpa-pre-novo-diagnose.json \
+  --simulation-report reports/rpa-pre-novo-simulation.json \
+  --reconciliation-report reports/rpa-pre-novo-reconciliation.json \
+  --report reports/rpa-pre-novo-load.json
+```
+
+A carga grava entidades e mapa de IDs na mesma transação; erro inesperado
+reverte tudo. Linhas rejeitadas por dados ou dependências ficam registradas
+como pendentes, sem interromper as outras linhas. Depois da carga, valide os
+mapas persistidos e os vínculos com:
+
+```bash
+python scripts/rpa_pre_novo.py reconcile --after-load \
+  --report reports/rpa-pre-novo-reconciliation-after.json
+```
+
 ## Pré-requisitos
 
 - Python 3.12, usado pelo workflow de aplicação.

@@ -27,6 +27,7 @@ $$;
 
 DROP PROCEDURE IF EXISTS create_state_goal(VARCHAR, TEXT, VARCHAR, VARCHAR, NUMERIC, TIMESTAMP, TIMESTAMP, INTEGER, INTEGER);
 
+-- p_status initializes only the farm-specific association when p_id_farm is provided.
 CREATE OR REPLACE PROCEDURE create_state_goal(
     IN p_title VARCHAR(50),
     IN p_description TEXT,
@@ -48,7 +49,6 @@ BEGIN
         title,
         description,
         type,
-        status,
         target_value,
         date_creation,
         date_end
@@ -57,7 +57,6 @@ BEGIN
         p_title,
         p_description,
         p_type,
-        p_status,
         p_target_value,
         p_date_creation,
         p_date_end
@@ -65,8 +64,8 @@ BEGIN
     RETURNING id INTO p_goal_id;
 
     IF p_id_farm IS NOT NULL THEN
-        INSERT INTO farm_goals (id_farm, id_goal)
-        VALUES (p_id_farm, p_goal_id)
+        INSERT INTO farm_goals (id_farm, id_goal, status)
+        VALUES (p_id_farm, p_goal_id, p_status)
         ON CONFLICT (id_farm, id_goal) DO NOTHING;
     END IF;
 

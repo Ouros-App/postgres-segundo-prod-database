@@ -184,7 +184,6 @@ Metas de abrangência estadual. A associação com fazendas é mantida pela tabe
 | `id` | `SERIAL`, PK | Identificador da meta estadual. |
 | `description` | `TEXT`, aceita `NULL` | Descrição detalhada da meta. |
 | `type` | `VARCHAR(50) NOT NULL` | Categoria ou tema da meta; não pode ser vazio. |
-| `status` | `VARCHAR(40) NOT NULL` | Estado atual da meta; não pode ser vazio. |
 | `target_value` | `NUMERIC NOT NULL`, maior que zero | Valor ou quantidade desejada. |
 | `title` | `VARCHAR(50) NOT NULL` | Título da meta; não pode ser vazio. |
 | `date_creation` | `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` | Data e hora de criação. |
@@ -202,13 +201,14 @@ Registra regiões participantes de metas estaduais.
 
 ### `farm_goals`
 
-Associação entre fazendas e metas estaduais. Uma fazenda não pode repetir a mesma meta.
+Associação entre fazendas e metas estaduais, incluindo o progresso individual da meta em cada fazenda. Uma fazenda não pode repetir a mesma meta.
 
 | Coluna | Tipo e regras | Descrição |
 |---|---|---|
 | `id` | `SERIAL`, PK | Identificador da associação. |
 | `id_farm` | `INTEGER NOT NULL`, FK → `farms.id` | Fazenda associada. |
 | `id_goal` | `INTEGER NOT NULL`, FK → `state_goals.id` | Meta associada. |
+| `status` | `VARCHAR(40) NOT NULL DEFAULT 'Pendente'` | Progresso da meta nesta fazenda; não pode ser vazio. |
 
 ### `state_goal_regions`
 
