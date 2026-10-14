@@ -187,6 +187,7 @@ def configure_service_role(
     password: str | None = None,
     search_path: str = "public, pg_catalog",
     login: bool | None = True,
+    read_only: bool = True,
 ) -> None:
     """Create and harden a service role without requiring bootstrap SUPERUSER."""
     role = qident(role_name)
@@ -226,7 +227,8 @@ def configure_service_role(
 
     cur.execute(f"REVOKE ALL PRIVILEGES ON DATABASE {qident(db_name)} FROM {role}")
     cur.execute(f"GRANT CONNECT ON DATABASE {qident(db_name)} TO {role}")
-    cur.execute(f"ALTER ROLE {role} SET default_transaction_read_only = on")
+    read_only_setting = "on" if read_only else "off"
+    cur.execute(f"ALTER ROLE {role} SET default_transaction_read_only = {read_only_setting}")
     cur.execute(f"ALTER ROLE {role} SET search_path = {search_path}")
 
 
@@ -296,6 +298,22 @@ def ensure_database(cfg: dict) -> None:
             if not auth_password:
                 print(
                     "[WARN] MS_AUTH_SERVICE_PASSWORD ausente; "
+                    "estado de login existente preservado (role novo permanece NOLOGIN)"
+                )
+
+            activity_password = os.getenv("ACTIVITY_RECORDER_PASSWORD")
+            configure_service_role(
+                cur,
+                db["name"],
+                "activity_recorder",
+                5,
+                activity_password,
+                login=True if activity_password else None,
+                read_only=False,
+            )
+            if not activity_password:
+                print(
+                    "[WARN] ACTIVITY_RECORDER_PASSWORD ausente; "
                     "estado de login existente preservado (role novo permanece NOLOGIN)"
                 )
     finally:

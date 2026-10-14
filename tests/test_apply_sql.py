@@ -133,6 +133,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("reconcile_farm_owners_first_access.sql", "on_change", False),
                 ("funcoes_consumo_metas.sql", "on_change", False),
                 ("atualiza_updated_at_analytics.sql", "on_change", False),
+                ("monitoramento_dau.sql", "on_change", False),
                 ("analytics_sync_user.sql", "on_change", False),
                 ("keycloak_user_link.sql", "on_change", False),
                 ("ms_auth_service.sql", "on_change", False),

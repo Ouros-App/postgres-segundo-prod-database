@@ -244,6 +244,37 @@ Credenciais de administradores do sistema.
 | `email` | `VARCHAR(50) NOT NULL` | E-mail de acesso. |
 | `password` | `TEXT NOT NULL` | Senha; não pode ser vazia. |
 
+## Monitoramento de atividade
+
+### `user_daily_activity`
+
+Armazena uma linha por conta e dia em que a atividade foi registrada. A
+identidade é composta pelo tipo da conta e pelo ID local; o dia segue
+`America/Sao_Paulo`. A função `public.record_daily_activity(text, integer)` valida
+a conta nos cadastros correspondentes e grava o primeiro uso do dia. O histórico
+não tem chave estrangeira polimórfica e deve ser mantido mesmo após a exclusão da
+conta; IDs não devem ser reutilizados.
+
+| Coluna | Tipo e regras | Descrição |
+|---|---|---|
+| `activity_date` | `DATE NOT NULL`, PK composta | Dia da atividade em `America/Sao_Paulo`. |
+| `user_type` | `TEXT NOT NULL`, PK composta, `CHECK` | Tipo: `farm_owner`, `company_employee` ou `adm`. |
+| `user_id` | `INTEGER NOT NULL`, PK composta, maior que zero | ID local da conta no cadastro correspondente. |
+| `first_recorded_at` | `TIMESTAMPTZ NOT NULL` | Instante do primeiro registro confirmado daquele dia. |
+
+O role `activity_recorder` só pode executar a função; não lê nem grava diretamente
+na tabela ou nos cadastros. O role `analytics_sync_ro` lê as views agregadas e não
+tem acesso à tabela individual. A retenção não é automatizada e deve ser definida
+antes de qualquer limpeza do histórico.
+
+### Views `dau_daily` e `dau_daily_by_user_type`
+
+`public.dau_daily` expõe `activity_date` e `active_users`; `public.dau_daily_by_user_type`
+expõe `activity_date`, `user_type` e `active_users`. Como ambas agregam somente
+linhas existentes, dias sem registros não aparecem e devem ser preenchidos por
+um calendário na consulta do relatório. A ausência de linhas também não permite
+inferir que a coleta estava operacional naquele dia.
+
 ### `plans`
 
 Planos comerciais que podem ser contratados por empresas.

@@ -36,6 +36,30 @@ As tabelas usadas pelo banco analítico recebem `updated_at` automaticamente por
 somente essas tabelas para alimentar o banco analítico; sua senha deve ser
 configurada fora do repositório.
 
+## Monitoramento DAU
+
+`sql/monitoramento_dau.sql` registra uma linha por conta e dia na tabela
+`public.user_daily_activity`. Uma conta é identificada pelo par `user_type` e
+`user_id` (`farm_owner`, `company_employee` ou `adm`), e o dia segue
+`America/Sao_Paulo`. A função `public.record_daily_activity(text, integer)` valida
+o cadastro e retorna `true` apenas quando grava o primeiro uso da conta naquele
+dia. Ela usa o horário de gravação do banco e não reconstrói eventos perdidos.
+
+O backend deve chamar a função depois de autenticar um login válido ou autorizar
+uma requisição de uso. A API deste repositório não está incluída, então publicar
+esta alteração disponibiliza a estrutura e as permissões, mas a coleta real só
+começa após essa integração. Não são criados registros a partir de seeds ou do
+campo `first_access`.
+
+O role `activity_recorder` recebe somente `EXECUTE` na função e precisa da
+variável `ACTIVITY_RECORDER_PASSWORD` configurada no `.env` local ou no secret de
+mesmo nome do GitHub Actions; sem uma senha, ele permanece `NOLOGIN`. O role
+`analytics_sync_ro` pode ler as views
+`public.dau_daily` e `public.dau_daily_by_user_type`, sem acesso à tabela
+individual. As views omitem dias sem registros; relatórios por intervalo devem
+gerar calendário e preencher esses dias com zero, distinguindo ausência de uso
+de falhas de coleta conhecidas.
+
 ## Pré-requisitos
 
 - Python 3.12, usado pelo workflow de aplicação.
@@ -109,6 +133,7 @@ O workflow `.github/workflows/ci-cd.yml` valida a presença do scaffold, executa
 │   └── apply_sql.py
 ├── sql/
 │   ├── banco_ouros_fisico.sql
+│   ├── monitoramento_dau.sql
 │   └── versionamento.sql
 └── tests/
     └── test_apply_sql.py

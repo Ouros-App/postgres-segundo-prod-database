@@ -23,7 +23,9 @@ GRANT SELECT ON TABLE
     public.farms_tips,
     public.categories,
     public.tip_categories,
-    public.reviews
+    public.reviews,
+    public.dau_daily,
+    public.dau_daily_by_user_type
 TO analytics_sync_ro;
 
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM analytics_sync_ro;
