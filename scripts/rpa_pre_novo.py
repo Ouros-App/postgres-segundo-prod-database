@@ -13,7 +13,7 @@ import uuid
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, time, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, Sequence
 
@@ -54,7 +54,8 @@ TARGET_COLUMNS: dict[str, tuple[str, ...]] = {
     "water_registries": ("id", "registration_date", "start_hydrometer", "end_hydrometer", "id_farm"),
     "energy_registries": ("id", "registration_date", "energy_consumption", "id_farm"),
     "individual_goals": ("id", "description", "type", "status", "target_value", "title", "id_farm"),
-    "state_goals": ("id", "description", "type", "status", "target_value", "title"),
+    "state_goals": ("id", "description", "type", "target_value", "title"),
+    "farm_goals": ("id", "id_farm", "id_goal", "status"),
     "regions_goals": ("id", "region", "id_goal"),
     "state_goal_regions": ("id", "id_goal", "id_region"),
 }
@@ -262,8 +263,10 @@ def state_code(value: Any) -> str:
 
 def country_code(value: Any) -> str:
     if value is None:
-        raise PendingData("missing_country")
+        return "BR"
     normalized = normalize_key(value)
+    if not normalized:
+        return "BR"
     code = normalized.upper()
     if re.fullmatch(r"[A-Z]{2}", code):
         return code
@@ -297,6 +300,28 @@ def text_value(value: Any) -> str | None:
     if value is None:
         return None
     return value if isinstance(value, str) else str(value)
+
+
+def digits_only_value(value: Any) -> str | None:
+    text = text_value(value)
+    if text is None:
+        return None
+    digits = re.sub(r"\D", "", text)
+    return digits or text
+
+
+def positive_numeric_value(value: Any) -> Decimal:
+    if value is None:
+        raise PendingData("missing_goal_target_value")
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise PendingData("invalid_goal_target_value") from exc
+    if not number.is_finite():
+        raise PendingData("invalid_goal_target_value")
+    if number <= 0:
+        raise PendingData("non_positive_goal_target_value")
+    return number
 
 
 def json_default(value: Any) -> Any:
@@ -1119,8 +1144,8 @@ class MigrationRunner:
                 return {
                     "name": text_value(current["nome"]),
                     "email": text_value(current["email_corporativo"]),
-                    "document_number": text_value(current["cnpj"]),
-                    "telephone": text_value(current["telefone_corporativo"]),
+                    "document_number": digits_only_value(current["cnpj"]),
+                    "telephone": digits_only_value(current["telefone_corporativo"]),
                     "id_address": address_id,
                 }
 
@@ -1190,9 +1215,9 @@ class MigrationRunner:
                 enterprise_id = self.target.mapped_id("empresa", current["id_empresa"], "enterprises")
                 return {
                     "name": text_value(current["nome"]),
-                    "document_number": text_value(current["cpf"]),
+                    "document_number": digits_only_value(current["cpf"]),
                     "email": text_value(current["email"]),
-                    "telephone": text_value(current["rpa_latest_telephone"]),
+                    "telephone": digits_only_value(current["rpa_latest_telephone"]),
                     "password": text_value(current["senha"]),
                     "id_enterprise": enterprise_id,
                 }
@@ -1207,10 +1232,10 @@ class MigrationRunner:
                 farm_id = self.target.mapped_id("granja", current["id_granja"], "farms")
                 return {
                     "name": text_value(current["nome"]),
-                    "document_number": text_value(current["cpf"]),
+                    "document_number": digits_only_value(current["cpf"]),
                     "password": text_value(current["senha"]),
                     "email": text_value(current["email"]),
-                    "telephone": text_value(current["rpa_latest_telephone"]),
+                    "telephone": digits_only_value(current["rpa_latest_telephone"]),
                     "first_access": False,
                     "foto_url": None,
                     "id_farm": farm_id,
@@ -1389,6 +1414,14 @@ class MigrationRunner:
                 self.report.add("pending", "meta", int(source_id), target_table, reason)
                 continue
             target_table = "individual_goals" if individual else "state_goals"
+            collective_status_reason: str | None = None
+            if not individual:
+                try:
+                    goal_status(row["status"])
+                except PendingData as exc:
+                    collective_status_reason = exc.reason
+                else:
+                    collective_status_reason = "collective_goal_status_requires_farm_association"
 
             def operation(mapped_target_id: int | None, current: dict[str, Any] = row) -> int:
                 goal_id = mapped_target_id
@@ -1396,11 +1429,11 @@ class MigrationRunner:
                     common = {
                         "description": text_value(current["descricao"]),
                         "type": text_value(current["tipo_meta"]),
-                        "status": goal_status(current["status"]),
-                        "target_value": current["valor_alvo"],
+                        "target_value": positive_numeric_value(current["valor_alvo"]),
                         "title": text_value(current["titulo"]),
                     }
                     if current["is_individual"]:
+                        common["status"] = goal_status(current["status"])
                         farm_id = self.target.mapped_id("granja", current["id_granja"], "farms")
                         common["id_farm"] = farm_id
                         goal_id = self.target.insert("individual_goals", common)
@@ -1423,6 +1456,24 @@ class MigrationRunner:
                 operation,
                 relationship_target_table="state_goal_regions" if not individual else None,
             )
+            if not individual and collective_status_reason:
+                goal_entry = self.target.maps.get(
+                    self.target.key("meta", int(source_id), "state_goals")
+                )
+                status_entry = self.target.maps.get(
+                    self.target.key("meta", int(source_id), "farm_goals")
+                )
+                if (
+                    goal_entry
+                    and goal_entry.status == "loaded"
+                    and not (status_entry and status_entry.status == "loaded")
+                ):
+                    self.target.store_pending_map(
+                        "meta", int(source_id), "farm_goals", collective_status_reason
+                    )
+                    self.report.add(
+                        "pending", "meta", int(source_id), "farm_goals", collective_status_reason
+                    )
 
     def run_pipeline(self) -> None:
         self._import_addresses()
@@ -1511,6 +1562,9 @@ def diagnose(
         "notes": [
             "O diagnóstico não altera dados.",
             "Conflitos e linhas pendentes devem ser analisados no relatório de simulação.",
+            "País de endereço nulo ou vazio será assumido como BR.",
+            "Telefones, CPFs e CNPJs serão armazenados somente com dígitos, sem separadores de formatação.",
+            "Status de metas coletivas sem vínculo de fazenda serão sinalizados como pendentes na simulação.",
         ],
     }
 
