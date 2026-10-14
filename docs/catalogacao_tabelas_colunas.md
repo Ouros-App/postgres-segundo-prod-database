@@ -1,6 +1,6 @@
 # Catálogo do banco de dados
 
-Este documento descreve as tabelas e views e suas colunas declaradas pelos scripts SQL do repositório. Os tipos, valores padrão, nulabilidade e restrições refletem o esquema versionado aqui; não são uma consulta aos dados de uma instância PostgreSQL em produção.
+Este documento descreve as tabelas e colunas declaradas pelos scripts SQL do repositório. Os tipos, valores padrão, nulabilidade e restrições refletem o esquema versionado aqui; não são uma consulta aos dados de uma instância PostgreSQL em produção.
 
 `PK` indica chave primária; `FK` indica chave estrangeira. Salvo indicação contrária, `NOT NULL` significa que a coluna é obrigatória e a ausência dessa marca significa que a coluna aceita `NULL`. Colunas `SERIAL` geram identificadores inteiros automaticamente.
 
@@ -294,119 +294,6 @@ Cópia dos principais dados de pagamento no momento em que o gatilho é executad
 | `value` | `DOUBLE PRECISION`, aceita `NULL` | Valor copiado do pagamento. |
 | `date_creation` | `TIMESTAMP`, aceita `NULL` | Data de criação do pagamento. |
 | `id_enterprise` | `INTEGER`, aceita `NULL` | ID da empresa associada. |
-
-## Views analíticas
-
-As cinco views abaixo são comuns (não materializadas), calculadas em cada
-consulta e disponíveis em `public`. Os meses são `DATE` do primeiro dia do
-mês; o mês em andamento e datas futuras são excluídos segundo
-`CURRENT_DATE` da sessão. Timestamps não recebem conversão de fuso. Empresa e
-região vêm do cadastro atual, portanto uma alteração cadastral pode
-reclassificar meses antigos. Valores de consumo e pagamentos são `NUMERIC`.
-
-### `water_monthly`
-
-Uma linha por granja e mês que tenha leituras de água. O rank é decrescente
-por empresa e mês e representa volume registrado. Comparações retornam `NULL`
-se houver lacuna mensal ou se o consumo anterior for zero; o acumulado anual
-soma os meses disponíveis.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id_farm` | `INTEGER` | Granja. |
-| `id_enterprise` | `INTEGER` | Empresa atual da granja. |
-| `region` | `VARCHAR(50)` | Região atual da granja. |
-| `month` | `DATE` | Primeiro dia do mês. |
-| `water_consumed` | `NUMERIC` | Soma de `end_hydrometer - start_hydrometer`. |
-| `water_consumed_ytd` | `NUMERIC` | Acumulado de consumo registrado no ano civil. |
-| `previous_month_water_consumed` | `NUMERIC` | Total do mês calendário imediatamente anterior, se disponível. |
-| `water_change_pct` | `NUMERIC` | Variação percentual mensal; nulo sem comparação válida. |
-| `water_consumption_rank` | `BIGINT` | `DENSE_RANK` decrescente na empresa e mês. |
-| `registry_count` | `BIGINT` | Quantidade de leituras incluídas. |
-
-### `energy_monthly`
-
-Uma linha por granja e mês com registros de energia. Ranking, lacunas e
-acumulado seguem a mesma janela de `water_monthly`.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id_farm` | `INTEGER` | Granja. |
-| `id_enterprise` | `INTEGER` | Empresa atual da granja. |
-| `region` | `VARCHAR(50)` | Região atual da granja. |
-| `month` | `DATE` | Primeiro dia do mês. |
-| `energy_consumed` | `NUMERIC` | Soma do consumo de energia registrado. |
-| `energy_consumed_ytd` | `NUMERIC` | Acumulado de consumo registrado no ano civil. |
-| `previous_month_energy_consumed` | `NUMERIC` | Total do mês calendário imediatamente anterior, se disponível. |
-| `energy_change_pct` | `NUMERIC` | Variação percentual mensal; nulo sem comparação válida. |
-| `energy_consumption_rank` | `BIGINT` | `DENSE_RANK` decrescente na empresa e mês. |
-| `registry_count` | `BIGINT` | Quantidade de registros incluídos. |
-
-### `integrated_monthly`
-
-Uma linha por granja e mês com ao menos água ou energia. Um recurso ausente
-fica nulo; as flags e contagens distinguem ausência de um consumo igual a
-zero. Participações comparam cada recurso ao total disponível da empresa no
-mês. Rankings são calculados separadamente por recurso.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id_farm` | `INTEGER` | Granja. |
-| `id_enterprise` | `INTEGER` | Empresa atual da granja. |
-| `region` | `VARCHAR(50)` | Região atual da granja. |
-| `month` | `DATE` | Primeiro dia do mês. |
-| `water_consumed` | `NUMERIC`, aceita `NULL` | Água registrada no mês; nulo quando ausente. |
-| `energy_consumed` | `NUMERIC`, aceita `NULL` | Energia registrada no mês; nulo quando ausente. |
-| `has_water_data` | `BOOLEAN` | Indica leituras de água disponíveis. |
-| `has_energy_data` | `BOOLEAN` | Indica registros de energia disponíveis. |
-| `water_registry_count` | `BIGINT` | Quantidade de leituras de água. |
-| `energy_registry_count` | `BIGINT` | Quantidade de registros de energia. |
-| `enterprise_month_water_consumed` | `NUMERIC`, aceita `NULL` | Total de água registrado pela empresa no mês. |
-| `enterprise_month_energy_consumed` | `NUMERIC`, aceita `NULL` | Total de energia registrado pela empresa no mês. |
-| `water_share_pct` | `NUMERIC`, aceita `NULL` | Participação da granja no total mensal de água disponível. |
-| `energy_share_pct` | `NUMERIC`, aceita `NULL` | Participação da granja no total mensal de energia disponível. |
-| `water_consumption_rank` | `BIGINT`, aceita `NULL` | `DENSE_RANK` de água; nulo se não houver água. |
-| `energy_consumption_rank` | `BIGINT`, aceita `NULL` | `DENSE_RANK` de energia; nulo se não houver energia. |
-
-### `goals_progress`
-
-Uma linha por granja, inclusive sem metas. A pontuação usa os pesos de
-`calculate_goals_progress`; granjas sem metas recebem percentual e rankings
-nulos, embora a função existente retorne zero.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id_farm` | `INTEGER` | Granja. |
-| `id_enterprise` | `INTEGER` | Empresa atual da granja. |
-| `region` | `VARCHAR(50)` | Região atual da granja. |
-| `goals_count` | `BIGINT` | Quantidade de metas individuais e compartilhadas vinculadas. |
-| `completed_goals_count` | `BIGINT` | Metas com status `Concluída`. |
-| `in_progress_goals_count` | `BIGINT` | Metas com status `Em andamento`. |
-| `pending_goals_count` | `BIGINT` | Metas com status `Pendente`. |
-| `unknown_status_goals_count` | `BIGINT` | Metas com outros status, pontuados como zero. |
-| `progress_pct` | `NUMERIC`, aceita `NULL` | Média arredondada a duas casas: 100, 50 ou 0 pelos status; nulo sem metas. |
-| `enterprise_progress_rank` | `BIGINT`, aceita `NULL` | `DENSE_RANK` decrescente de progresso na empresa. |
-| `region_progress_rank` | `BIGINT`, aceita `NULL` | `DENSE_RANK` decrescente de progresso na região. |
-
-### `payments_monthly`
-
-Uma linha por empresa e mês com pagamentos registrados. Não junta planos, para
-evitar multiplicação de linhas. A soma significa valor registrado e não
-confirma liquidação.
-
-| Coluna | Tipo | Descrição |
-|---|---|---|
-| `id_enterprise` | `INTEGER` | Empresa do pagamento. |
-| `month` | `DATE` | Primeiro dia do mês. |
-| `payments_count` | `BIGINT` | Quantidade de pagamentos registrados. |
-| `payments_value` | `NUMERIC` | Soma de `payments.value` registrada no mês. |
-| `payments_value_ytd` | `NUMERIC` | Acumulado dos valores registrados no ano civil. |
-| `previous_month_payments_value` | `NUMERIC` | Valor registrado no mês calendário anterior, se disponível. |
-| `payments_change_pct` | `NUMERIC` | Variação percentual mensal; nulo sem comparação válida. |
-| `payments_rank` | `BIGINT` | `DENSE_RANK` decrescente entre empresas no mês. |
-
-As views podem ser lidas pelo role `analytics_sync_ro`. Elas não recebem
-concessão automática ao `midas_ro` nem a `PUBLIC`.
 
 ### `lots_log`
 
