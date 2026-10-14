@@ -36,12 +36,28 @@ class DataloadSchemaCompatibilityTests(unittest.TestCase):
         self.assertIsNotNone(goals)
         self.assertNotRegex(farms.group(1), r"(?i)\bplace\b")
         self.assertNotRegex(goals.group(1), r"(?i)\bid_farm\b")
+        self.assertNotRegex(goals.group(1), r"(?i)\bstatus\b")
+        farm_goals = re.search(
+            r"CREATE TABLE IF NOT EXISTS farm_goals\s*\((.*?)\n\);",
+            schema,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        self.assertIsNotNone(farm_goals)
+        self.assertRegex(farm_goals.group(1), r"(?i)\bstatus\s+VARCHAR\(40\)\s+NOT NULL\s+DEFAULT 'Pendente'")
 
         dataload = (ROOT / "sql" / "dataload_inicial.sql").read_text(encoding="utf-8")
         self.assertNotRegex(dataload, r"(?i)INSERT INTO farms\s*\([^)]*\bplace\b")
         self.assertNotRegex(
             dataload,
             r"(?i)INSERT INTO state_goals\s*\([^)]*\bid_farm\b",
+        )
+        self.assertNotRegex(
+            dataload,
+            r"(?i)INSERT INTO state_goals\s*\([^)]*\bstatus\b",
+        )
+        self.assertRegex(
+            dataload,
+            r"(?i)INSERT INTO farm_goals\s*\(id_farm,\s*id_goal,\s*status\)",
         )
         state_goal_titles = set(
             re.findall(
@@ -65,6 +81,10 @@ class DataloadSchemaCompatibilityTests(unittest.TestCase):
         for sql_file in ("triggers_logs.sql", "midas-user.sql", "remover_poultry_capacity_farms.sql"):
             content = (ROOT / "sql" / sql_file).read_text(encoding="utf-8")
             self.assertNotRegex(content, r"(?i)farm_row\.place|\bplace\s*,")
+
+        progress_function = (ROOT / "sql" / "funcoes_consumo_metas.sql").read_text(encoding="utf-8")
+        self.assertIn("SELECT fg.status", progress_function)
+        self.assertNotIn("SELECT sg.status", progress_function)
 
     def test_lots_postload_does_not_reference_removed_gain_column(self):
         schema = (ROOT / "sql" / "banco_ouros_fisico.sql").read_text(encoding="utf-8")
