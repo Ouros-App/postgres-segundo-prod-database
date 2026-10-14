@@ -5,8 +5,7 @@ WITH monthly_water AS (
     SELECT
         w.id_farm,
         date_trunc('month', w.registration_date)::date AS month,
-        SUM(w.end_hydrometer - w.start_hydrometer)::numeric AS water_consumed,
-        COUNT(*)::bigint AS registry_count
+        SUM(w.end_hydrometer - w.start_hydrometer)::numeric AS water_consumed
     FROM public.water_registries AS w
     WHERE w.registration_date < date_trunc('month', CURRENT_DATE)
     GROUP BY w.id_farm, date_trunc('month', w.registration_date)::date
@@ -17,8 +16,7 @@ farm_months AS (
         f.id_enterprise,
         f.region,
         mw.month,
-        mw.water_consumed,
-        mw.registry_count
+        mw.water_consumed
     FROM monthly_water AS mw
     JOIN public.farms AS f ON f.id = mw.id_farm
 ),
@@ -39,12 +37,7 @@ windowed AS (
         ) AS previous_month,
         LAG(fm.water_consumed) OVER (
             PARTITION BY fm.id_farm ORDER BY fm.month
-        ) AS previous_water_consumed,
-        DENSE_RANK() OVER (
-            PARTITION BY fm.id_enterprise, fm.month
-            ORDER BY fm.water_consumed DESC
-        ) AS water_consumption_rank,
-        fm.registry_count
+        ) AS previous_water_consumed
     FROM farm_months AS fm
 ),
 compared AS (
@@ -59,15 +52,7 @@ compared AS (
             WHEN w.previous_month = (w.month - INTERVAL '1 month')::date
                 THEN w.previous_water_consumed
             ELSE NULL
-        END AS previous_month_water_consumed,
-        CASE
-            WHEN w.previous_month = (w.month - INTERVAL '1 month')::date
-                THEN 100::numeric * (w.water_consumed - w.previous_water_consumed)
-                    / NULLIF(w.previous_water_consumed, 0)
-            ELSE NULL
-        END AS water_change_pct,
-        w.water_consumption_rank,
-        w.registry_count
+        END AS previous_month_water_consumed
     FROM windowed AS w
 )
 SELECT
@@ -77,22 +62,18 @@ SELECT
     month,
     water_consumed,
     water_consumed_ytd,
-    previous_month_water_consumed,
-    water_change_pct,
-    water_consumption_rank,
-    registry_count
+    previous_month_water_consumed
 FROM compared;
 
 COMMENT ON VIEW public.water_monthly IS
-    'Consumo mensal de água por granja, apenas para meses encerrados; ranks abrangem a empresa toda naquele mês.';
+    'Consumo mensal de água por granja, apenas para meses encerrados.';
 
 CREATE OR REPLACE VIEW public.energy_monthly AS
 WITH monthly_energy AS (
     SELECT
         e.id_farm,
         date_trunc('month', e.registration_date)::date AS month,
-        SUM(e.energy_consumption)::numeric AS energy_consumed,
-        COUNT(*)::bigint AS registry_count
+        SUM(e.energy_consumption)::numeric AS energy_consumed
     FROM public.energy_registries AS e
     WHERE e.registration_date < date_trunc('month', CURRENT_DATE)
     GROUP BY e.id_farm, date_trunc('month', e.registration_date)::date
@@ -103,8 +84,7 @@ farm_months AS (
         f.id_enterprise,
         f.region,
         me.month,
-        me.energy_consumed,
-        me.registry_count
+        me.energy_consumed
     FROM monthly_energy AS me
     JOIN public.farms AS f ON f.id = me.id_farm
 ),
@@ -125,12 +105,7 @@ windowed AS (
         ) AS previous_month,
         LAG(fm.energy_consumed) OVER (
             PARTITION BY fm.id_farm ORDER BY fm.month
-        ) AS previous_energy_consumed,
-        DENSE_RANK() OVER (
-            PARTITION BY fm.id_enterprise, fm.month
-            ORDER BY fm.energy_consumed DESC
-        ) AS energy_consumption_rank,
-        fm.registry_count
+        ) AS previous_energy_consumed
     FROM farm_months AS fm
 ),
 compared AS (
@@ -145,15 +120,7 @@ compared AS (
             WHEN e.previous_month = (e.month - INTERVAL '1 month')::date
                 THEN e.previous_energy_consumed
             ELSE NULL
-        END AS previous_month_energy_consumed,
-        CASE
-            WHEN e.previous_month = (e.month - INTERVAL '1 month')::date
-                THEN 100::numeric * (e.energy_consumed - e.previous_energy_consumed)
-                    / NULLIF(e.previous_energy_consumed, 0)
-            ELSE NULL
-        END AS energy_change_pct,
-        e.energy_consumption_rank,
-        e.registry_count
+        END AS previous_month_energy_consumed
     FROM windowed AS e
 )
 SELECT
@@ -163,14 +130,11 @@ SELECT
     month,
     energy_consumed,
     energy_consumed_ytd,
-    previous_month_energy_consumed,
-    energy_change_pct,
-    energy_consumption_rank,
-    registry_count
+    previous_month_energy_consumed
 FROM compared;
 
 COMMENT ON VIEW public.energy_monthly IS
-    'Consumo mensal de energia por granja, apenas para meses encerrados; ranks abrangem a empresa toda naquele mês.';
+    'Consumo mensal de energia por granja, apenas para meses encerrados.';
 
 CREATE OR REPLACE VIEW public.integrated_monthly AS
 WITH monthly_water AS (
@@ -235,15 +199,7 @@ windowed AS (
         ) AS enterprise_month_water_consumed,
         SUM(fm.energy_consumed) OVER (
             PARTITION BY fm.id_enterprise, fm.month
-        ) AS enterprise_month_energy_consumed,
-        DENSE_RANK() OVER (
-            PARTITION BY fm.id_enterprise, fm.month
-            ORDER BY fm.water_consumed DESC NULLS LAST
-        ) AS water_consumption_rank,
-        DENSE_RANK() OVER (
-            PARTITION BY fm.id_enterprise, fm.month
-            ORDER BY fm.energy_consumed DESC NULLS LAST
-        ) AS energy_consumption_rank
+        ) AS enterprise_month_energy_consumed
     FROM farm_months AS fm
 ),
 shares AS (
@@ -263,9 +219,7 @@ shares AS (
         100::numeric * w.water_consumed
             / NULLIF(w.enterprise_month_water_consumed, 0) AS water_share_pct,
         100::numeric * w.energy_consumed
-            / NULLIF(w.enterprise_month_energy_consumed, 0) AS energy_share_pct,
-        CASE WHEN w.has_water_data THEN w.water_consumption_rank END AS water_consumption_rank,
-        CASE WHEN w.has_energy_data THEN w.energy_consumption_rank END AS energy_consumption_rank
+            / NULLIF(w.enterprise_month_energy_consumed, 0) AS energy_share_pct
     FROM windowed AS w
 )
 SELECT
@@ -282,9 +236,7 @@ SELECT
     enterprise_month_water_consumed,
     enterprise_month_energy_consumed,
     water_share_pct,
-    energy_share_pct,
-    water_consumption_rank,
-    energy_consumption_rank
+    energy_share_pct
 FROM shares;
 
 COMMENT ON VIEW public.integrated_monthly IS
@@ -297,9 +249,8 @@ WITH goals AS (
 
     UNION ALL
 
-    SELECT fg.id_farm, sg.status
+    SELECT fg.id_farm, fg.status
     FROM public.farm_goals AS fg
-    JOIN public.state_goals AS sg ON sg.id = fg.id_goal
 ),
 farm_progress AS (
     SELECT
@@ -321,42 +272,19 @@ farm_progress AS (
         ), 2) AS progress_pct
     FROM goals AS g
     GROUP BY g.id_farm
-),
-ranked_goals AS (
-    SELECT
-        f.id AS id_farm,
-        f.id_enterprise,
-        f.region,
-        fp.goals_count,
-        fp.completed_goals_count,
-        fp.in_progress_goals_count,
-        fp.pending_goals_count,
-        fp.unknown_status_goals_count,
-        fp.progress_pct,
-        DENSE_RANK() OVER (
-            PARTITION BY f.id_enterprise ORDER BY fp.progress_pct DESC
-        ) AS enterprise_progress_rank,
-        DENSE_RANK() OVER (
-            PARTITION BY f.region ORDER BY fp.progress_pct DESC
-        ) AS region_progress_rank
-    FROM farm_progress AS fp
-    JOIN public.farms AS f ON f.id = fp.id_farm
-    WHERE fp.goals_count > 0
 )
 SELECT
     f.id AS id_farm,
     f.id_enterprise,
     f.region,
-    COALESCE(rg.goals_count, 0)::bigint AS goals_count,
-    COALESCE(rg.completed_goals_count, 0)::bigint AS completed_goals_count,
-    COALESCE(rg.in_progress_goals_count, 0)::bigint AS in_progress_goals_count,
-    COALESCE(rg.pending_goals_count, 0)::bigint AS pending_goals_count,
-    COALESCE(rg.unknown_status_goals_count, 0)::bigint AS unknown_status_goals_count,
-    rg.progress_pct,
-    rg.enterprise_progress_rank,
-    rg.region_progress_rank
+    COALESCE(fp.goals_count, 0)::bigint AS goals_count,
+    COALESCE(fp.completed_goals_count, 0)::bigint AS completed_goals_count,
+    COALESCE(fp.in_progress_goals_count, 0)::bigint AS in_progress_goals_count,
+    COALESCE(fp.pending_goals_count, 0)::bigint AS pending_goals_count,
+    COALESCE(fp.unknown_status_goals_count, 0)::bigint AS unknown_status_goals_count,
+    fp.progress_pct
 FROM public.farms AS f
-LEFT JOIN ranked_goals AS rg ON rg.id_farm = f.id;
+LEFT JOIN farm_progress AS fp ON fp.id_farm = f.id;
 
 COMMENT ON VIEW public.goals_progress IS
     'Progresso das metas individuais e compartilhadas por granja; o contexto cadastral reflete empresa e região atuais.';
@@ -389,10 +317,7 @@ windowed AS (
         ) AS previous_month,
         LAG(mp.payments_value) OVER (
             PARTITION BY mp.id_enterprise ORDER BY mp.month
-        ) AS previous_payments_value,
-        DENSE_RANK() OVER (
-            PARTITION BY mp.month ORDER BY mp.payments_value DESC
-        ) AS payments_rank
+        ) AS previous_payments_value
     FROM monthly_payments AS mp
 ),
 compared AS (
@@ -412,8 +337,7 @@ compared AS (
                 THEN 100::numeric * (w.payments_value - w.previous_payments_value)
                     / NULLIF(w.previous_payments_value, 0)
             ELSE NULL
-        END AS payments_change_pct,
-        w.payments_rank
+        END AS payments_change_pct
     FROM windowed AS w
 )
 SELECT
@@ -423,8 +347,7 @@ SELECT
     payments_value,
     payments_value_ytd,
     previous_month_payments_value,
-    payments_change_pct,
-    payments_rank
+    payments_change_pct
 FROM compared;
 
 COMMENT ON VIEW public.payments_monthly IS

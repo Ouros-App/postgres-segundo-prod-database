@@ -41,11 +41,11 @@ automaticamente ao role `midas_ro`.
 
 `sql/views_analytics.sql` cria cinco views comuns no schema `public`:
 
-- `water_monthly`: uma linha por granja e mês com leituras de água; inclui consumo, acumulado anual, comparação com o mês consecutivo anterior, posição de consumo na empresa e quantidade de leituras.
+- `water_monthly`: uma linha por granja e mês com leituras de água; inclui consumo, acumulado anual e consumo do mês consecutivo anterior, quando disponível.
 - `energy_monthly`: os mesmos indicadores para energia.
-- `integrated_monthly`: uma linha por granja e mês em que água ou energia foi registrada; mantém o recurso ausente como `NULL`, informa flags de disponibilidade e calcula totais, participações e rankings por recurso.
+- `integrated_monthly`: uma linha por granja e mês em que água ou energia foi registrada; mantém o recurso ausente como `NULL`, informa flags de disponibilidade e calcula totais e participações por recurso.
 - `goals_progress`: uma linha para cada granja, inclusive sem metas; reproduz a pontuação de `calculate_goals_progress` e discrimina metas desconhecidas.
-- `payments_monthly`: uma linha por empresa e mês com pagamentos registrados, acumulado anual, comparação consecutiva e posição mensal entre empresas.
+- `payments_monthly`: uma linha por empresa e mês com pagamentos registrados, acumulado anual e comparação consecutiva.
 
 Exemplo de consulta para um dashboard por empresa:
 
@@ -54,9 +54,8 @@ SELECT
     id_farm,
     month,
     water_consumed,
-    previous_month_water_consumed,
-    water_change_pct,
-    water_consumption_rank
+    water_consumed_ytd,
+    previous_month_water_consumed
 FROM public.water_monthly
 WHERE id_enterprise = 42
   AND month >= DATE '2025-01-01'
@@ -72,18 +71,16 @@ acumulado soma apenas os valores registrados disponíveis. As colunas de
 comparação retornam `NULL` se faltar o mês imediatamente anterior ou se o
 valor anterior for zero.
 
-Os rankings usam `DENSE_RANK` decrescente por empresa e mês (ou, em pagamentos,
-entre empresas no mês). Eles medem volume registrado, não eficiência. Como as
-funções de janela são calculadas na view, filtros externos por granja preservam
-o rank, e filtros por período preservam o acumulado anual calculado desde o
-início do ano. Empresa e região são o cadastro atual da granja e podem
-reclassificar períodos históricos após uma alteração cadastral.
+As funções de janela calculam os acumulados anuais e as comparações entre meses
+consecutivos. Como são calculadas na view, filtros externos por período preservam
+o acumulado anual desde o início do ano. Empresa e região são o cadastro atual
+da granja e podem reclassificar períodos históricos após uma alteração cadastral.
 
 Em `goals_progress`, metas concluídas pontuam 100, em andamento 50 e pendentes
 ou com status desconhecido 0. Uma meta compartilhada conta uma vez por granja
-vinculada. Sem metas, a view expõe `goals_count = 0`, `progress_pct = NULL` e
-ranks nulos; a função existente `calculate_goals_progress` continua retornando
-zero nesse caso. `target_value` não é convertido em percentual de cumprimento,
+vinculada. Sem metas, a view expõe `goals_count = 0` e `progress_pct = NULL`; a
+função existente `calculate_goals_progress` continua retornando zero nesse caso.
+`target_value` não é convertido em percentual de cumprimento,
 pois o esquema não registra a medida alcançada.
 
 `payments_value` é a soma de `payments.value` registrada, sem confirmação de
