@@ -85,20 +85,6 @@ FROM compared;
 
 COMMENT ON VIEW public.water_monthly IS
     'Consumo mensal de água por granja, apenas para meses encerrados; ranks abrangem a empresa toda naquele mês.';
-COMMENT ON COLUMN public.water_monthly.month IS
-    'Primeiro dia do mês (DATE); o mês em andamento e datas futuras são excluídos por CURRENT_DATE da sessão.';
-COMMENT ON COLUMN public.water_monthly.water_consumed IS
-    'Soma NUMERIC de end_hydrometer - start_hydrometer nas leituras do mês.';
-COMMENT ON COLUMN public.water_monthly.water_consumed_ytd IS
-    'Acumulado do consumo mensal registrado no ano civil; meses sem registros não geram linhas.';
-COMMENT ON COLUMN public.water_monthly.previous_month_water_consumed IS
-    'Consumo do mês imediatamente anterior; NULL quando há lacuna ou o mês anterior não existe.';
-COMMENT ON COLUMN public.water_monthly.water_change_pct IS
-    'Variação percentual contra o mês imediatamente anterior; NULL para lacunas ou consumo anterior zero.';
-COMMENT ON COLUMN public.water_monthly.water_consumption_rank IS
-    'DENSE_RANK decrescente por empresa e mês; maior consumo registrado recebe posição 1.';
-COMMENT ON COLUMN public.water_monthly.registry_count IS
-    'Quantidade de leituras incluídas no total mensal.';
 
 CREATE OR REPLACE VIEW public.energy_monthly AS
 WITH monthly_energy AS (
@@ -185,20 +171,6 @@ FROM compared;
 
 COMMENT ON VIEW public.energy_monthly IS
     'Consumo mensal de energia por granja, apenas para meses encerrados; ranks abrangem a empresa toda naquele mês.';
-COMMENT ON COLUMN public.energy_monthly.month IS
-    'Primeiro dia do mês (DATE); o mês em andamento e datas futuras são excluídos por CURRENT_DATE da sessão.';
-COMMENT ON COLUMN public.energy_monthly.energy_consumed IS
-    'Soma NUMERIC do consumo de energia registrado no mês.';
-COMMENT ON COLUMN public.energy_monthly.energy_consumed_ytd IS
-    'Acumulado do consumo mensal registrado no ano civil; meses sem registros não geram linhas.';
-COMMENT ON COLUMN public.energy_monthly.previous_month_energy_consumed IS
-    'Consumo do mês imediatamente anterior; NULL quando há lacuna ou o mês anterior não existe.';
-COMMENT ON COLUMN public.energy_monthly.energy_change_pct IS
-    'Variação percentual contra o mês imediatamente anterior; NULL para lacunas ou consumo anterior zero.';
-COMMENT ON COLUMN public.energy_monthly.energy_consumption_rank IS
-    'DENSE_RANK decrescente por empresa e mês; maior consumo registrado recebe posição 1.';
-COMMENT ON COLUMN public.energy_monthly.registry_count IS
-    'Quantidade de registros de energia incluídos no total mensal.';
 
 CREATE OR REPLACE VIEW public.integrated_monthly AS
 WITH monthly_water AS (
@@ -317,32 +289,6 @@ FROM shares;
 
 COMMENT ON VIEW public.integrated_monthly IS
     'Água e energia mensais por granja e mês com ao menos um recurso registrado; recursos ausentes ficam NULL.';
-COMMENT ON COLUMN public.integrated_monthly.month IS
-    'Primeiro dia do mês (DATE); considera apenas meses encerrados segundo CURRENT_DATE da sessão.';
-COMMENT ON COLUMN public.integrated_monthly.water_consumed IS
-    'Soma NUMERIC de água registrada no mês; NULL quando não há leitura.';
-COMMENT ON COLUMN public.integrated_monthly.energy_consumed IS
-    'Soma NUMERIC de energia registrada no mês; NULL quando não há registro.';
-COMMENT ON COLUMN public.integrated_monthly.has_water_data IS
-    'Indica se há ao menos uma leitura de água; diferencia ausência de dado de consumo igual a zero.';
-COMMENT ON COLUMN public.integrated_monthly.has_energy_data IS
-    'Indica se há ao menos um registro de energia.';
-COMMENT ON COLUMN public.integrated_monthly.water_registry_count IS
-    'Quantidade de leituras de água consideradas para a granja e o mês.';
-COMMENT ON COLUMN public.integrated_monthly.energy_registry_count IS
-    'Quantidade de registros de energia considerados para a granja e o mês.';
-COMMENT ON COLUMN public.integrated_monthly.enterprise_month_water_consumed IS
-    'Total de água registrado por todas as granjas da empresa no mês.';
-COMMENT ON COLUMN public.integrated_monthly.enterprise_month_energy_consumed IS
-    'Total de energia registrado por todas as granjas da empresa no mês.';
-COMMENT ON COLUMN public.integrated_monthly.water_share_pct IS
-    'Percentual da água da granja em relação ao total registrado da empresa no mês; NULL sem água ou com total zero.';
-COMMENT ON COLUMN public.integrated_monthly.energy_share_pct IS
-    'Percentual da energia da granja em relação ao total registrado da empresa no mês; NULL sem energia ou com total zero.';
-COMMENT ON COLUMN public.integrated_monthly.water_consumption_rank IS
-    'DENSE_RANK decrescente por empresa e mês; NULL quando a granja não tem água registrada.';
-COMMENT ON COLUMN public.integrated_monthly.energy_consumption_rank IS
-    'DENSE_RANK decrescente por empresa e mês; NULL quando a granja não tem energia registrada.';
 
 CREATE OR REPLACE VIEW public.goals_progress AS
 WITH goals AS (
@@ -414,28 +360,6 @@ LEFT JOIN ranked_goals AS rg ON rg.id_farm = f.id;
 
 COMMENT ON VIEW public.goals_progress IS
     'Progresso das metas individuais e compartilhadas por granja; o contexto cadastral reflete empresa e região atuais.';
-COMMENT ON COLUMN public.goals_progress.id_farm IS
-    'Granja incluída mesmo quando não possui metas.';
-COMMENT ON COLUMN public.goals_progress.id_enterprise IS
-    'Empresa atual da granja; alterações cadastrais podem reclassificar o histórico.';
-COMMENT ON COLUMN public.goals_progress.region IS
-    'Região atual da granja; alterações cadastrais podem reclassificar o histórico.';
-COMMENT ON COLUMN public.goals_progress.goals_count IS
-    'Total de metas individuais e metas compartilhadas vinculadas à granja; granjas sem metas têm zero.';
-COMMENT ON COLUMN public.goals_progress.completed_goals_count IS
-    'Metas com status Concluída.';
-COMMENT ON COLUMN public.goals_progress.in_progress_goals_count IS
-    'Metas com status Em andamento.';
-COMMENT ON COLUMN public.goals_progress.pending_goals_count IS
-    'Metas com status Pendente.';
-COMMENT ON COLUMN public.goals_progress.unknown_status_goals_count IS
-    'Metas com qualquer status não reconhecido; esses status pontuam zero.';
-COMMENT ON COLUMN public.goals_progress.progress_pct IS
-    'Média arredondada a duas casas da pontuação: Concluída 100, Em andamento 50, Pendente ou desconhecido 0; NULL sem metas.';
-COMMENT ON COLUMN public.goals_progress.enterprise_progress_rank IS
-    'DENSE_RANK por empresa, maior progresso primeiro; NULL para granjas sem metas.';
-COMMENT ON COLUMN public.goals_progress.region_progress_rank IS
-    'DENSE_RANK por região atual, maior progresso primeiro; NULL para granjas sem metas.';
 
 CREATE OR REPLACE VIEW public.payments_monthly AS
 WITH monthly_payments AS (
@@ -505,22 +429,6 @@ FROM compared;
 
 COMMENT ON VIEW public.payments_monthly IS
     'Pagamentos registrados por empresa e mês encerrado; a soma não confirma liquidação financeira.';
-COMMENT ON COLUMN public.payments_monthly.id_enterprise IS
-    'Empresa associada ao pagamento registrado.';
-COMMENT ON COLUMN public.payments_monthly.month IS
-    'Primeiro dia do mês (DATE); o mês em andamento e datas futuras são excluídos por CURRENT_DATE da sessão.';
-COMMENT ON COLUMN public.payments_monthly.payments_count IS
-    'Quantidade de pagamentos registrados no mês.';
-COMMENT ON COLUMN public.payments_monthly.payments_value IS
-    'Soma NUMERIC de payments.value registrada no mês; não representa confirmação de recebimento.';
-COMMENT ON COLUMN public.payments_monthly.payments_value_ytd IS
-    'Acumulado anual dos valores registrados; meses sem pagamentos não geram linhas.';
-COMMENT ON COLUMN public.payments_monthly.previous_month_payments_value IS
-    'Valor registrado no mês imediatamente anterior; NULL quando há lacuna ou o mês anterior não existe.';
-COMMENT ON COLUMN public.payments_monthly.payments_change_pct IS
-    'Variação percentual contra o mês imediatamente anterior; NULL para lacunas ou valor anterior zero.';
-COMMENT ON COLUMN public.payments_monthly.payments_rank IS
-    'DENSE_RANK decrescente entre empresas por mês; maior valor registrado recebe posição 1.';
 
 REVOKE ALL PRIVILEGES ON TABLE
     public.water_monthly,
