@@ -90,3 +90,5 @@ database:
       mode: on_change
     - file: analytics_sync_user.sql
       mode: on_change
+    - file: cria_tabelas_notificacoes.sql
+      mode: once
