@@ -145,6 +145,11 @@ jobs:
       - name: Bootstrap database from zero
         run: python scripts/apply_sql.py
 
+      - name: Verify recursive farm stock timeline
+        env:
+          STOCK_TIMELINE_INTEGRATION: "1"
+        run: python -m unittest discover -s tests -p 'test_farm_chicken_stock_timeline.py' -v
+
       - name: Verify farms capacity migration with modern Midas view
         run: |
           python - <<'PY'

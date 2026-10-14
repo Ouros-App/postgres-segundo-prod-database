@@ -20,6 +20,8 @@ database:
   execution_order:
     - file: banco_ouros_fisico.sql
       mode: on_change
+    - file: farm_chicken_stock_timeline.sql
+      mode: on_change
     - file: move_state_goal_status_to_farm_goals.sql
       mode: once
     - file: nullable_legacy_missing_columns.sql
