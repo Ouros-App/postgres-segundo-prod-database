@@ -33,8 +33,108 @@ O executor também mantém a tabela `controle_scripts_sql`, com checksum, commit
 
 As tabelas usadas pelo banco analítico recebem `updated_at` automaticamente por
 `sql/atualiza_updated_at_analytics.sql`. O role `analytics_sync_ro` pode ler
-somente essas tabelas para alimentar o banco analítico; sua senha deve ser
-configurada fora do repositório.
+as tabelas autorizadas e as views analíticas descritas abaixo; sua senha deve
+ser configurada fora do repositório. As novas views não são expostas
+automaticamente ao role `midas_ro`.
+
+## Views analíticas
+
+`sql/views_analytics.sql` cria cinco views comuns no schema `public`:
+
+- `water_monthly`: uma linha por granja e mês com leituras de água; inclui consumo, acumulado anual e consumo do mês consecutivo anterior, quando disponível.
+- `energy_monthly`: os mesmos indicadores para energia.
+- `integrated_monthly`: uma linha por granja e mês em que água ou energia foi registrada; mantém o recurso ausente como `NULL`, informa flags de disponibilidade e calcula totais e participações por recurso.
+- `goals_progress`: uma linha para cada granja, inclusive sem metas; reproduz a pontuação de `calculate_goals_progress` e discrimina metas desconhecidas.
+- `payments_monthly`: uma linha por empresa e mês com pagamentos registrados, acumulado anual e comparação consecutiva.
+
+Exemplo de consulta para um dashboard por empresa:
+
+```sql
+SELECT
+    id_farm,
+    month,
+    water_consumed,
+    water_consumed_ytd,
+    previous_month_water_consumed
+FROM public.water_monthly
+WHERE id_enterprise = 42
+  AND month >= DATE '2025-01-01'
+  AND month < DATE '2026-01-01'
+ORDER BY month, id_farm;
+```
+
+Os meses são datas do primeiro dia do mês. As views mensais excluem o mês em
+andamento e registros futuros com base em `CURRENT_DATE` da sessão. Os
+timestamps são usados sem conversão de fuso; configure a timezone esperada pela
+organização na conexão do BI. Meses sem registros não criam linhas, então o
+acumulado soma apenas os valores registrados disponíveis. As colunas de
+comparação retornam `NULL` se faltar o mês imediatamente anterior ou se o
+valor anterior for zero.
+
+As funções de janela calculam os acumulados anuais e as comparações entre meses
+consecutivos. Como são calculadas na view, filtros externos por período preservam
+o acumulado anual desde o início do ano. Empresa e região são o cadastro atual
+da granja e podem reclassificar períodos históricos após uma alteração cadastral.
+
+Em `goals_progress`, metas concluídas pontuam 100, em andamento 50 e pendentes
+ou com status desconhecido 0. Uma meta compartilhada conta uma vez por granja
+vinculada. Sem metas, a view expõe `goals_count = 0` e `progress_pct = NULL`; a
+função existente `calculate_goals_progress` continua retornando zero nesse caso.
+`target_value` não é convertido em percentual de cumprimento,
+pois o esquema não registra a medida alcançada.
+
+`payments_value` é a soma de `payments.value` registrada, sem confirmação de
+liquidação. Água e energia permanecem indicadores separados; não há índice
+combinado nem divisão por `farms.chickens_now`, que representa o estoque atual.
+O role `analytics_sync_ro` tem leitura explícita nas cinco views. O script de
+permissões é executado depois delas e revoga acessos anteriores antes de
+reconceder a lista aprovada.
+
+## RPA de importação do banco pré
+
+O script `scripts/rpa_pre_novo.py` implementa a importação planejada do banco
+pré para o esquema atual do Ouros. Configure as variáveis `RPA_SOURCE_*` e
+`RPA_TARGET_*` no `.env`; mantenha credenciais fora do Git.
+`RPA_SOURCE_SYSTEM` identifica de forma estável a origem usada no mapa
+persistente de IDs.
+
+Antes da carga, rode diagnóstico, simulação e reconciliação pré-carga. Os
+relatórios JSON são compatíveis entre si e não incluem campos de negócio nem
+credenciais; os detalhes pendentes incluem os IDs legados para auditoria:
+
+```bash
+python scripts/rpa_pre_novo.py diagnose --report reports/rpa-pre-novo-diagnose.json
+python scripts/rpa_pre_novo.py simulate --report reports/rpa-pre-novo-simulation.json
+python scripts/rpa_pre_novo.py reconcile --before-load \
+  --simulation-report reports/rpa-pre-novo-simulation.json \
+  --report reports/rpa-pre-novo-reconciliation.json
+```
+
+`simulate` executa as mesmas regras da carga dentro de uma transação revertida,
+usa IDs temporários negativos e não avança as sequences do destino. Verifique
+os itens pendentes nos relatórios e confirme que as migrations aprovadas foram
+aplicadas no banco de destino. A carga real é separada e exige a confirmação
+literal do banco, além dos três relatórios:
+
+```bash
+python scripts/rpa_pre_novo.py load \
+  --confirm-load \
+  --expected-target-db NOME_EXATO_DO_BANCO \
+  --diagnostic-report reports/rpa-pre-novo-diagnose.json \
+  --simulation-report reports/rpa-pre-novo-simulation.json \
+  --reconciliation-report reports/rpa-pre-novo-reconciliation.json \
+  --report reports/rpa-pre-novo-load.json
+```
+
+A carga grava entidades e mapa de IDs na mesma transação; erro inesperado
+reverte tudo. Linhas rejeitadas por dados ou dependências ficam registradas
+como pendentes, sem interromper as outras linhas. Depois da carga, valide os
+mapas persistidos e os vínculos com:
+
+```bash
+python scripts/rpa_pre_novo.py reconcile --after-load \
+  --report reports/rpa-pre-novo-reconciliation-after.json
+```
 
 ## Monitoramento DAU
 

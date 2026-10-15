@@ -24,8 +24,11 @@ GRANT SELECT ON TABLE
     public.categories,
     public.tip_categories,
     public.reviews,
-    public.dau_daily,
-    public.dau_daily_by_user_type
+    public.water_monthly,
+    public.energy_monthly,
+    public.integrated_monthly,
+    public.goals_progress,
+    public.payments_monthly
 TO analytics_sync_ro;
 
 REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM analytics_sync_ro;

@@ -221,6 +221,7 @@ jobs:
                   cur.execute("ALTER TABLE state_goals ADD COLUMN id_farm INTEGER REFERENCES farms(id)")
                   cur.execute("DROP VIEW midas.farm_goals")
                   cur.execute("DROP VIEW midas.state_goals")
+                  cur.execute("DROP VIEW public.goals_progress")
                   cur.execute("ALTER TABLE farm_goals DROP CONSTRAINT farm_goals_status_nonempty")
                   cur.execute("ALTER TABLE farm_goals DROP COLUMN status")
                   cur.execute("ALTER TABLE state_goals ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Pendente'")
@@ -273,7 +274,8 @@ jobs:
                       "DELETE FROM controle_scripts_sql "
                       "WHERE arquivo IN ('remover_poultry_capacity_farms.sql', "
                       "'remover_state_goal_farm_id_and_farms_place.sql', "
-                      "'move_state_goal_status_to_farm_goals.sql')"
+                      "'move_state_goal_status_to_farm_goals.sql', "
+                      "'views_analytics.sql', 'analytics_sync_user.sql')"
                   )
                   Path("/tmp/ouros-legacy-schema.json").write_text(
                       json.dumps({
