@@ -1,5 +1,3 @@
--- Daily activity is recorded only when the authenticated backend calls this function.
--- Keep IDs as historical identity values; do not reuse account IDs after deletion.
 
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
@@ -12,16 +10,6 @@ CREATE TABLE IF NOT EXISTS public.user_daily_activity (
     PRIMARY KEY (activity_date, user_type, user_id)
 );
 
-COMMENT ON TABLE public.user_daily_activity IS
-    'Uma linha por conta e dia de uso; activity_date segue America/Sao_Paulo.';
-COMMENT ON COLUMN public.user_daily_activity.activity_date IS
-    'Dia da atividade calculado no fuso America/Sao_Paulo.';
-COMMENT ON COLUMN public.user_daily_activity.user_type IS
-    'Tipo de conta local: farm_owner, company_employee ou adm.';
-COMMENT ON COLUMN public.user_daily_activity.user_id IS
-    'ID da conta no cadastro correspondente; não deve ser reutilizado após exclusão.';
-COMMENT ON COLUMN public.user_daily_activity.first_recorded_at IS
-    'Instante do primeiro registro confirmado para a conta naquele dia.';
 
 CREATE OR REPLACE FUNCTION public.record_daily_activity(
     p_user_type TEXT,
@@ -83,24 +71,18 @@ BEGIN
 END;
 $function$;
 
-COMMENT ON FUNCTION public.record_daily_activity(TEXT, INTEGER) IS
-    'Valida uma conta e registra uma única atividade diária usando America/Sao_Paulo; retorna true somente no primeiro registro do dia.';
 
 CREATE OR REPLACE VIEW public.dau_daily AS
 SELECT activity_date, COUNT(*)::BIGINT AS active_users
 FROM public.user_daily_activity
 GROUP BY activity_date;
 
-COMMENT ON VIEW public.dau_daily IS
-    'Contagem diária de contas ativas registradas; dias sem linhas não aparecem.';
 
 CREATE OR REPLACE VIEW public.dau_daily_by_user_type AS
 SELECT activity_date, user_type, COUNT(*)::BIGINT AS active_users
 FROM public.user_daily_activity
 GROUP BY activity_date, user_type;
 
-COMMENT ON VIEW public.dau_daily_by_user_type IS
-    'Contagem diária de contas ativas por tipo; dias sem linhas não aparecem.';
 
 REVOKE ALL PRIVILEGES ON SCHEMA public FROM activity_recorder;
 GRANT USAGE ON SCHEMA public TO activity_recorder;
