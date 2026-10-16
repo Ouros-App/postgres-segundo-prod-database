@@ -27,21 +27,21 @@ WITH seed_farms (
     chickens_now
 ) AS (
     VALUES
-        ('99100101', 'PR', 'Cascavel', 'Sul', 'Granja Analytics - Cascavel', 62.5::NUMERIC, 12000),
-        ('99100102', 'SC', 'Chapeco', 'Sul', 'Granja Analytics - Chapeco', 67.0::NUMERIC, 12750),
-        ('99100103', 'RS', 'Passo Fundo', 'Sul', 'Granja Analytics - Passo Fundo', 71.5::NUMERIC, 13500),
-        ('99100104', 'GO', 'Rio Verde', 'Centro-Oeste', 'Granja Analytics - Rio Verde', 76.0::NUMERIC, 14250),
-        ('99100105', 'MT', 'Sorriso', 'Centro-Oeste', 'Granja Analytics - Sorriso', 80.5::NUMERIC, 15000),
-        ('99100106', 'MS', 'Dourados', 'Centro-Oeste', 'Granja Analytics - Dourados', 85.0::NUMERIC, 15750),
-        ('99100107', 'MG', 'Uberlandia', 'Sudeste', 'Granja Analytics - Uberlandia', 89.5::NUMERIC, 16500),
-        ('99100108', 'ES', 'Linhares', 'Sudeste', 'Granja Analytics - Linhares', 94.0::NUMERIC, 17250),
-        ('99100109', 'BA', 'Feira de Santana', 'Nordeste', 'Granja Analytics - Feira de Santana', 98.5::NUMERIC, 18000),
-        ('99100110', 'PE', 'Garanhuns', 'Nordeste', 'Granja Analytics - Garanhuns', 103.0::NUMERIC, 18750),
-        ('99100111', 'CE', 'Quixada', 'Nordeste', 'Granja Analytics - Quixada', 107.5::NUMERIC, 19500),
-        ('99100112', 'PA', 'Maraba', 'Norte', 'Granja Analytics - Maraba', 112.0::NUMERIC, 20250),
-        ('99100113', 'TO', 'Araguaina', 'Norte', 'Granja Analytics - Araguaina', 116.5::NUMERIC, 21000),
-        ('99100114', 'RO', 'Ji-Parana', 'Norte', 'Granja Analytics - Ji-Parana', 121.0::NUMERIC, 21750),
-        ('99100115', 'AM', 'Itacoatiara', 'Norte', 'Granja Analytics - Itacoatiara', 125.5::NUMERIC, 22500)
+        ('99100101', 'PR', 'Cascavel', 'Sul', 'Granja - Cascavel', 62.5::NUMERIC, 12000),
+        ('99100102', 'SC', 'Chapeco', 'Sul', 'Granja - Chapeco', 67.0::NUMERIC, 12750),
+        ('99100103', 'RS', 'Passo Fundo', 'Sul', 'Granja - Passo Fundo', 71.5::NUMERIC, 13500),
+        ('99100104', 'GO', 'Rio Verde', 'Centro-Oeste', 'Granja - Rio Verde', 76.0::NUMERIC, 14250),
+        ('99100105', 'MT', 'Sorriso', 'Centro-Oeste', 'Granja - Sorriso', 80.5::NUMERIC, 15000),
+        ('99100106', 'MS', 'Dourados', 'Centro-Oeste', 'Granja - Dourados', 85.0::NUMERIC, 15750),
+        ('99100107', 'MG', 'Uberlandia', 'Sudeste', 'Granja - Uberlandia', 89.5::NUMERIC, 16500),
+        ('99100108', 'ES', 'Linhares', 'Sudeste', 'Granja - Linhares', 94.0::NUMERIC, 17250),
+        ('99100109', 'BA', 'Feira de Santana', 'Nordeste', 'Granja - Feira de Santana', 98.5::NUMERIC, 18000),
+        ('99100110', 'PE', 'Garanhuns', 'Nordeste', 'Granja - Garanhuns', 103.0::NUMERIC, 18750),
+        ('99100111', 'CE', 'Quixada', 'Nordeste', 'Granja - Quixada', 107.5::NUMERIC, 19500),
+        ('99100112', 'PA', 'Maraba', 'Norte', 'Granja - Maraba', 112.0::NUMERIC, 20250),
+        ('99100113', 'TO', 'Araguaina', 'Norte', 'Granja - Araguaina', 116.5::NUMERIC, 21000),
+        ('99100114', 'RO', 'Ji-Parana', 'Norte', 'Granja - Ji-Parana', 121.0::NUMERIC, 21750),
+        ('99100115', 'AM', 'Itacoatiara', 'Norte', 'Granja - Itacoatiara', 125.5::NUMERIC, 22500)
 ), inserted_addresses AS (
     INSERT INTO public.addresses (zip_code, state, city, number, country)
     SELECT
@@ -105,12 +105,38 @@ WITH seed_farms (
     WHERE NOT EXISTS (
         SELECT 1
         FROM public.farms AS farm
-        WHERE farm.name = seed.farm_name
+        WHERE farm.id_address = seed.address_id
     )
     RETURNING id
 )
 SELECT COUNT(*) AS inserted_farms
 FROM inserted_farms;
+
+-- Atualiza os nomes caso a versao anterior da carga ja tenha sido executada.
+UPDATE public.farms AS farm
+SET name = seed.farm_name
+FROM public.addresses AS address
+JOIN (
+    VALUES
+        ('99100101', 'Granja - Cascavel'),
+        ('99100102', 'Granja - Chapeco'),
+        ('99100103', 'Granja - Passo Fundo'),
+        ('99100104', 'Granja - Rio Verde'),
+        ('99100105', 'Granja - Sorriso'),
+        ('99100106', 'Granja - Dourados'),
+        ('99100107', 'Granja - Uberlandia'),
+        ('99100108', 'Granja - Linhares'),
+        ('99100109', 'Granja - Feira de Santana'),
+        ('99100110', 'Granja - Garanhuns'),
+        ('99100111', 'Granja - Quixada'),
+        ('99100112', 'Granja - Maraba'),
+        ('99100113', 'Granja - Araguaina'),
+        ('99100114', 'Granja - Ji-Parana'),
+        ('99100115', 'Granja - Itacoatiara')
+) AS seed(zip_code, farm_name)
+  ON seed.zip_code = address.zip_code
+WHERE farm.id_address = address.id
+  AND farm.name IS DISTINCT FROM seed.farm_name;
 
 -- Leituras de agua com medidores crescentes ao longo de 36 meses completos.
 WITH months AS (
@@ -138,7 +164,11 @@ WITH months AS (
         )::NUMERIC AS water_usage
     FROM public.farms AS farm
     CROSS JOIN months
-    WHERE farm.name LIKE 'Granja Analytics - %'
+    WHERE farm.id_address IN (
+        SELECT address.id
+        FROM public.addresses AS address
+        WHERE address.zip_code LIKE '991001%'
+    )
 )
 INSERT INTO public.water_registries (
     registration_date,
@@ -180,7 +210,11 @@ WITH months AS (
         )::NUMERIC AS energy_consumption
     FROM public.farms AS farm
     CROSS JOIN months
-    WHERE farm.name LIKE 'Granja Analytics - %'
+    WHERE farm.id_address IN (
+        SELECT address.id
+        FROM public.addresses AS address
+        WHERE address.zip_code LIKE '991001%'
+    )
 )
 INSERT INTO public.energy_registries (
     registration_date,
@@ -223,7 +257,11 @@ WITH months AS (
         )::DOUBLE PRECISION AS cost
     FROM public.farms AS farm
     CROSS JOIN months
-    WHERE farm.name LIKE 'Granja Analytics - %'
+    WHERE farm.id_address IN (
+        SELECT address.id
+        FROM public.addresses AS address
+        WHERE address.zip_code LIKE '991001%'
+    )
 )
 INSERT INTO public.lots (
     received_chickens,
@@ -266,7 +304,11 @@ WITH months AS (
         10 + ((farm.id * 17 + months.month_index * 23) % 91) AS chickens_count
     FROM public.farms AS farm
     CROSS JOIN months
-    WHERE farm.name LIKE 'Granja Analytics - %'
+    WHERE farm.id_address IN (
+        SELECT address.id
+        FROM public.addresses AS address
+        WHERE address.zip_code LIKE '991001%'
+    )
 )
 INSERT INTO public.chicken_left (chickens_count, exit_date, id_farm)
 SELECT

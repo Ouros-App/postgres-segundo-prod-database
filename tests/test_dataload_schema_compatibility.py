@@ -33,6 +33,13 @@ class DataloadSchemaCompatibilityTests(unittest.TestCase):
         self.assertTrue(all("foto_url" in columns.lower() for columns in farm_columns))
         self.assertRegex(dataload, r"seed\.chickens_now,\s*'',\s*seed\.address_id")
         self.assertNotIn("example.invalid", dataload)
+        self.assertNotIn("Granja Analytics -", dataload)
+        inserted_farm_names = re.findall(
+            r"\('991\d{5}',\s*'[A-Z]{2}',\s*'[^']+',\s*'[^']+',\s*'([^']+)'",
+            dataload,
+        )
+        self.assertEqual(len(inserted_farm_names), 15)
+        self.assertTrue(all("Analytics" not in name for name in inserted_farm_names))
 
         states = set(
             re.findall(

@@ -527,19 +527,33 @@ jobs:
           with conn:
               with conn.cursor() as cur:
                   cur.execute(script)
+                  cur.execute(
+                      "UPDATE public.farms SET name = %s "
+                      "WHERE id_address = (SELECT id FROM public.addresses WHERE zip_code = %s)",
+                      ("Granja Analytics - Chapeco", "99100102"),
+                  )
                   cur.execute(script)
 
                   cur.execute(
-                      "SELECT COUNT(*) FROM public.farms "
-                      "WHERE name LIKE 'Granja Analytics - %'"
+                      "SELECT COUNT(*) FROM public.farms AS farm "
+                      "JOIN public.addresses AS address ON address.id = farm.id_address "
+                      "WHERE address.zip_code LIKE '991001%'"
                   )
                   assert cur.fetchone()[0] == 15, "expected exactly 15 analytics farms after rerun"
 
                   cur.execute(
-                      "SELECT COUNT(*) FROM public.farms "
-                      "WHERE name LIKE 'Granja Analytics - %' AND foto_url IS DISTINCT FROM ''"
+                      "SELECT COUNT(*) FROM public.farms AS farm "
+                      "JOIN public.addresses AS address ON address.id = farm.id_address "
+                      "WHERE address.zip_code LIKE '991001%' AND foto_url IS DISTINCT FROM ''"
                   )
                   assert cur.fetchone()[0] == 0, "analytics farms should have an empty foto_url"
+
+                  cur.execute(
+                      "SELECT COUNT(*) FROM public.farms AS farm "
+                      "JOIN public.addresses AS address ON address.id = farm.id_address "
+                      "WHERE address.zip_code LIKE '991001%' AND farm.name ILIKE '%analytics%'"
+                  )
+                  assert cur.fetchone()[0] == 0, "analytics marker should not remain in farm names"
 
                   expected_rows = {
                       "water_registries": 540,
@@ -551,7 +565,8 @@ jobs:
                       cur.execute(
                           f"SELECT COUNT(*) FROM public.{table} AS record "
                           "JOIN public.farms AS farm ON farm.id = record.id_farm "
-                          "WHERE farm.name LIKE 'Granja Analytics - %'"
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%'"
                       )
                       assert cur.fetchone()[0] == expected, (
                           f"expected {expected} analytics rows in {table} after rerun"
@@ -559,34 +574,39 @@ jobs:
 
                   null_checks = {
                       "farms": (
-                          "SELECT COUNT(*) FROM public.farms WHERE name LIKE 'Granja Analytics - %' "
+                          "SELECT COUNT(*) FROM public.farms AS farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
                           "AND (area_property IS NULL OR region IS NULL OR chickens_now IS NULL "
                           "OR foto_url IS NULL OR id_address IS NULL OR id_enterprise IS NULL)"
                       ),
                       "addresses": (
                           "SELECT COUNT(*) FROM public.addresses AS address "
                           "JOIN public.farms AS farm ON farm.id_address = address.id "
-                          "WHERE farm.name LIKE 'Granja Analytics - %' "
+                          "WHERE address.zip_code LIKE '991001%' "
                           "AND (address.zip_code IS NULL OR address.state IS NULL OR address.city IS NULL "
                           "OR address.number IS NULL OR address.country IS NULL)"
                       ),
                       "water_registries": (
                           "SELECT COUNT(*) FROM public.water_registries AS record "
                           "JOIN public.farms AS farm ON farm.id = record.id_farm "
-                          "WHERE farm.name LIKE 'Granja Analytics - %' "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
                           "AND (record.registration_date IS NULL OR record.start_hydrometer IS NULL "
                           "OR record.end_hydrometer IS NULL)"
                       ),
                       "energy_registries": (
                           "SELECT COUNT(*) FROM public.energy_registries AS record "
                           "JOIN public.farms AS farm ON farm.id = record.id_farm "
-                          "WHERE farm.name LIKE 'Granja Analytics - %' "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
                           "AND (record.registration_date IS NULL OR record.energy_consumption IS NULL)"
                       ),
                       "lots": (
                           "SELECT COUNT(*) FROM public.lots AS record "
                           "JOIN public.farms AS farm ON farm.id = record.id_farm "
-                          "WHERE farm.name LIKE 'Granja Analytics - %' "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
                           "AND (record.received_chickens IS NULL OR record.delivered_chickens IS NULL "
                           "OR record.delivery_date IS NULL OR record.id_enterprise IS NULL "
                           "OR record.losts IS NULL OR record.cost IS NULL)"
@@ -594,7 +614,8 @@ jobs:
                       "chicken_left": (
                           "SELECT COUNT(*) FROM public.chicken_left AS record "
                           "JOIN public.farms AS farm ON farm.id = record.id_farm "
-                          "WHERE farm.name LIKE 'Granja Analytics - %' "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
                           "AND (record.chickens_count IS NULL OR record.exit_date IS NULL)"
                       ),
                   }
