@@ -97,7 +97,7 @@ WITH seed_farms (
         seed.area_property,
         seed.region,
         seed.chickens_now,
-        'https://example.invalid/analytics/' || seed.zip_code || '.jpg',
+        '',
         seed.address_id,
         enterprise.id
     FROM resolved_addresses AS seed

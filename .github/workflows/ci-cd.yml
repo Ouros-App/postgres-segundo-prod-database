@@ -535,6 +535,12 @@ jobs:
                   )
                   assert cur.fetchone()[0] == 15, "expected exactly 15 analytics farms after rerun"
 
+                  cur.execute(
+                      "SELECT COUNT(*) FROM public.farms "
+                      "WHERE name LIKE 'Granja Analytics - %' AND foto_url IS DISTINCT FROM ''"
+                  )
+                  assert cur.fetchone()[0] == 0, "analytics farms should have an empty foto_url"
+
                   expected_rows = {
                       "water_registries": 540,
                       "energy_registries": 540,

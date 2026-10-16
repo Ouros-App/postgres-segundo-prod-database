@@ -31,6 +31,8 @@ class DataloadSchemaCompatibilityTests(unittest.TestCase):
         )
         self.assertTrue(farm_columns)
         self.assertTrue(all("foto_url" in columns.lower() for columns in farm_columns))
+        self.assertRegex(dataload, r"seed\.chickens_now,\s*'',\s*seed\.address_id")
+        self.assertNotIn("example.invalid", dataload)
 
         states = set(
             re.findall(
