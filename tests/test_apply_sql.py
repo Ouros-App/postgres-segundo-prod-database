@@ -142,6 +142,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("atualiza_farms-chicken-left.sql", "once", False),
                 ("atualiza_farm-owners-campos-opcionais.sql", "once", False),
                 ("dataload_inicial.sql", "once", True),
+                ("dataload_analytics.sql", "never", False),
                 ("atualiza_consumo_mensal.sql", "never", False),
                 ("views_galinhas_consumo.sql", "on_change", False),
                 ("dataload_lots_farm-owners.sql", "never", False),

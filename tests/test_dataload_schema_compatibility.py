@@ -20,39 +20,37 @@ class DataloadSchemaCompatibilityTests(unittest.TestCase):
         self.assertNotRegex(farms_definition.group(1), r"(?i)\bpoultry_capacity\b")
         self.assertNotRegex(dataload, r"(?i)\bpoultry_capacity\b")
 
-    def test_seed_has_non_null_multiyear_analytics_data_across_brazilian_regions(self):
-        dataload = (ROOT / "sql" / "dataload_inicial.sql").read_text(encoding="utf-8")
+    def test_analytics_loader_adds_non_null_multiyear_data_across_brazilian_regions(self):
+        dataload = (ROOT / "sql" / "dataload_analytics.sql").read_text(encoding="utf-8")
 
         self.assertNotRegex(dataload, r"(?i)\bNULL\b")
 
-        for table in ("farms", "farm_owners"):
-            column_lists = re.findall(
-                rf"(?i)INSERT INTO {table}\s*\(([^)]*)\)",
-                dataload,
-            )
-            self.assertTrue(column_lists)
-            self.assertTrue(
-                all("foto_url" in columns.lower() for columns in column_lists),
-                f"Every seeded {table} row must set foto_url.",
-            )
+        farm_columns = re.findall(
+            r"(?i)INSERT INTO public\.farms\s*\(([^)]*)\)",
+            dataload,
+        )
+        self.assertTrue(farm_columns)
+        self.assertTrue(all("foto_url" in columns.lower() for columns in farm_columns))
 
         states = set(
             re.findall(
-                r"(?i)INSERT INTO addresses\s*\(zip_code,\s*state,\s*city,\s*number,\s*country\)"
-                r"\s*VALUES\s*\('[^']+',\s*'([A-Z]{2})'",
+                r"(?i)\(\s*'991\d{5}',\s*'([A-Z]{2})',\s*'[^']+',\s*'"
+                r"(?:Norte|Nordeste|Centro-Oeste|Sudeste|Sul)'",
                 dataload,
             )
-        ) - {"NI"}
-        self.assertGreaterEqual(len(states), 16)
+        )
+        self.assertEqual(len(states), 15)
 
         for region in ("Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"):
             self.assertIn(f"'{region}'", dataload)
 
         self.assertEqual(dataload.count("FROM generate_series(0, 35) AS months(month_index)"), 4)
-        self.assertRegex(dataload, r"(?i)INSERT INTO water_registries\s*\(")
-        self.assertRegex(dataload, r"(?i)INSERT INTO energy_registries\s*\(")
-        self.assertRegex(dataload, r"(?i)INSERT INTO lots\s*\([^)]*\blosts\b[^)]*\bcost\b")
-        self.assertRegex(dataload, r"(?i)INSERT INTO chicken_left\s*\(chickens_count,\s*exit_date,\s*id_farm\)")
+        self.assertIn("date_trunc('month', CURRENT_DATE)", dataload)
+        self.assertRegex(dataload, r"(?i)INSERT INTO public\.water_registries\s*\(")
+        self.assertRegex(dataload, r"(?i)INSERT INTO public\.energy_registries\s*\(")
+        self.assertRegex(dataload, r"(?i)INSERT INTO public\.lots\s*\([^)]*\blosts\b[^)]*\bcost\b")
+        self.assertRegex(dataload, r"(?i)INSERT INTO public\.chicken_left\s*\(chickens_count,\s*exit_date,\s*id_farm\)")
+        self.assertGreaterEqual(dataload.count("WHERE NOT EXISTS"), 6)
 
     def test_removed_farm_and_state_goal_columns_have_no_active_dependencies(self):
         schema = (ROOT / "sql" / "banco_ouros_fisico.sql").read_text(encoding="utf-8")

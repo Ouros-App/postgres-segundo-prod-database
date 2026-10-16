@@ -513,6 +513,91 @@ jobs:
           conn.close()
           PY
 
+      - name: Verify supplementary analytics data load
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="app", password="app"
+          )
+          script = Path("sql/dataload_analytics.sql").read_text(encoding="utf-8")
+          with conn:
+              with conn.cursor() as cur:
+                  cur.execute(script)
+                  cur.execute(script)
+
+                  cur.execute(
+                      "SELECT COUNT(*) FROM public.farms "
+                      "WHERE name LIKE 'Granja Analytics - %'"
+                  )
+                  assert cur.fetchone()[0] == 15, "expected exactly 15 analytics farms after rerun"
+
+                  expected_rows = {
+                      "water_registries": 540,
+                      "energy_registries": 540,
+                      "lots": 540,
+                      "chicken_left": 540,
+                  }
+                  for table, expected in expected_rows.items():
+                      cur.execute(
+                          f"SELECT COUNT(*) FROM public.{table} AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "WHERE farm.name LIKE 'Granja Analytics - %'"
+                      )
+                      assert cur.fetchone()[0] == expected, (
+                          f"expected {expected} analytics rows in {table} after rerun"
+                      )
+
+                  null_checks = {
+                      "farms": (
+                          "SELECT COUNT(*) FROM public.farms WHERE name LIKE 'Granja Analytics - %' "
+                          "AND (area_property IS NULL OR region IS NULL OR chickens_now IS NULL "
+                          "OR foto_url IS NULL OR id_address IS NULL OR id_enterprise IS NULL)"
+                      ),
+                      "addresses": (
+                          "SELECT COUNT(*) FROM public.addresses AS address "
+                          "JOIN public.farms AS farm ON farm.id_address = address.id "
+                          "WHERE farm.name LIKE 'Granja Analytics - %' "
+                          "AND (address.zip_code IS NULL OR address.state IS NULL OR address.city IS NULL "
+                          "OR address.number IS NULL OR address.country IS NULL)"
+                      ),
+                      "water_registries": (
+                          "SELECT COUNT(*) FROM public.water_registries AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "WHERE farm.name LIKE 'Granja Analytics - %' "
+                          "AND (record.registration_date IS NULL OR record.start_hydrometer IS NULL "
+                          "OR record.end_hydrometer IS NULL)"
+                      ),
+                      "energy_registries": (
+                          "SELECT COUNT(*) FROM public.energy_registries AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "WHERE farm.name LIKE 'Granja Analytics - %' "
+                          "AND (record.registration_date IS NULL OR record.energy_consumption IS NULL)"
+                      ),
+                      "lots": (
+                          "SELECT COUNT(*) FROM public.lots AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "WHERE farm.name LIKE 'Granja Analytics - %' "
+                          "AND (record.received_chickens IS NULL OR record.delivered_chickens IS NULL "
+                          "OR record.delivery_date IS NULL OR record.id_enterprise IS NULL "
+                          "OR record.losts IS NULL OR record.cost IS NULL)"
+                      ),
+                      "chicken_left": (
+                          "SELECT COUNT(*) FROM public.chicken_left AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "WHERE farm.name LIKE 'Granja Analytics - %' "
+                          "AND (record.chickens_count IS NULL OR record.exit_date IS NULL)"
+                      ),
+                  }
+                  for table, query in null_checks.items():
+                      cur.execute(query)
+                      assert cur.fetchone()[0] == 0, f"analytics data in {table} contains NULL values"
+          conn.close()
+          PY
+
   sql:
     name: sql
     runs-on: ubuntu-latest

@@ -72,6 +72,9 @@ database:
         ) OR EXISTS (
           SELECT 1 FROM adms LIMIT 1
         )
+    - file: dataload_analytics.sql
+      mode: never
+      # Carga sintetica adicional; o CI a executa somente no PostgreSQL descartavel.
     - file: atualiza_consumo_mensal.sql
       mode: never
     - file: views_galinhas_consumo.sql
