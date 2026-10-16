@@ -1,4 +1,4 @@
--- Calcula o saldo diário de aves a partir de um saldo inicial conhecido.
+-- Retorna o saldo inicial e as datas com movimentação subsequentes.
 -- Cada lote é contabilizado em delivery_date: recebidas entram; entregues e
 -- perdidas saem. chicken_left registra saídas adicionais e não deve repetir
 -- perdas já contabilizadas em lots.losts.
@@ -69,20 +69,17 @@ WITH RECURSIVE farm_context AS (
         pg_catalog.sum(movement_events.chickens_out)::BIGINT AS chickens_out
     FROM movement_events
     GROUP BY movement_events.movement_date
-), daily_steps AS (
+), ordered_movements AS (
     SELECT
-        farm_context.start_date + date_step.day_number AS stock_date,
-        COALESCE(daily_movements.chickens_in, 0) AS chickens_in,
-        COALESCE(daily_movements.chickens_out, 0) AS chickens_out
-    FROM farm_context
-    CROSS JOIN LATERAL pg_catalog.generate_series(
-        1,
-        p_until_date - farm_context.start_date
-    ) AS date_step(day_number)
-    LEFT JOIN daily_movements
-      ON daily_movements.movement_date = farm_context.start_date + date_step.day_number
-), stock_by_day(
-    day_number,
+        pg_catalog.row_number() OVER (ORDER BY daily_movements.movement_date) AS movement_number,
+        daily_movements.movement_date,
+        daily_movements.chickens_in,
+        daily_movements.chickens_out
+    FROM daily_movements
+    WHERE daily_movements.chickens_in > 0
+       OR daily_movements.chickens_out > 0
+), stock_by_movement(
+    movement_number,
     farm_id,
     farm_name,
     stock_date,
@@ -91,7 +88,7 @@ WITH RECURSIVE farm_context AS (
     stock_after_day
 ) AS (
     SELECT
-        0,
+        0::BIGINT,
         farm_context.id,
         farm_context.name,
         farm_context.start_date,
@@ -103,29 +100,26 @@ WITH RECURSIVE farm_context AS (
     UNION ALL
 
     SELECT
-        stock_by_day.day_number + 1,
-        stock_by_day.farm_id,
-        stock_by_day.farm_name,
-        daily_steps.stock_date,
-        daily_steps.chickens_in,
-        daily_steps.chickens_out,
-        stock_by_day.stock_after_day
-            + daily_steps.chickens_in
-            - daily_steps.chickens_out
-    FROM stock_by_day
-    JOIN daily_steps
-      ON daily_steps.stock_date = stock_by_day.stock_date + 1
+        ordered_movements.movement_number,
+        stock_by_movement.farm_id,
+        stock_by_movement.farm_name,
+        ordered_movements.movement_date,
+        ordered_movements.chickens_in,
+        ordered_movements.chickens_out,
+        stock_by_movement.stock_after_day
+            + ordered_movements.chickens_in
+            - ordered_movements.chickens_out
+    FROM stock_by_movement
+    JOIN ordered_movements
+      ON ordered_movements.movement_number = stock_by_movement.movement_number + 1
 )
 SELECT
-    stock_by_day.farm_id,
-    stock_by_day.farm_name,
-    stock_by_day.stock_date,
-    stock_by_day.chickens_in,
-    stock_by_day.chickens_out,
-    stock_by_day.stock_after_day
-FROM stock_by_day
-ORDER BY stock_by_day.day_number;
+    stock_by_movement.farm_id,
+    stock_by_movement.farm_name,
+    stock_by_movement.stock_date,
+    stock_by_movement.chickens_in,
+    stock_by_movement.chickens_out,
+    stock_by_movement.stock_after_day
+FROM stock_by_movement
+ORDER BY stock_by_movement.movement_number;
 $function$;
-
-COMMENT ON FUNCTION public.farm_chicken_stock_timeline(INTEGER, DATE, INTEGER, DATE) IS
-    'Evolução diária por CTE recursiva a partir do saldo de fechamento informado; movimentos de lotes usam delivery_date e saídas adicionais usam chicken_left.exit_date.';

@@ -97,7 +97,6 @@ class FarmChickenStockTimelineTest(unittest.TestCase):
             [
                 (1, "Granja A", dt.date(2026, 10, 1), 0, 0, 1000),
                 (1, "Granja A", dt.date(2026, 10, 2), 150, 50, 1100),
-                (1, "Granja A", dt.date(2026, 10, 3), 0, 0, 1100),
                 (1, "Granja A", dt.date(2026, 10, 4), 0, 230, 870),
             ],
         )
