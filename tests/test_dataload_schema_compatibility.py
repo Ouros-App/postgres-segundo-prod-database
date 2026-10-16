@@ -20,6 +20,47 @@ class DataloadSchemaCompatibilityTests(unittest.TestCase):
         self.assertNotRegex(farms_definition.group(1), r"(?i)\bpoultry_capacity\b")
         self.assertNotRegex(dataload, r"(?i)\bpoultry_capacity\b")
 
+    def test_analytics_loader_adds_non_null_multiyear_data_across_brazilian_regions(self):
+        dataload = (ROOT / "sql" / "dataload_analytics.sql").read_text(encoding="utf-8")
+
+        self.assertNotRegex(dataload, r"(?i)\bNULL\b")
+
+        farm_columns = re.findall(
+            r"(?i)INSERT INTO public\.farms\s*\(([^)]*)\)",
+            dataload,
+        )
+        self.assertTrue(farm_columns)
+        self.assertTrue(all("foto_url" in columns.lower() for columns in farm_columns))
+        self.assertRegex(dataload, r"seed\.chickens_now,\s*'',\s*seed\.address_id")
+        self.assertNotIn("example.invalid", dataload)
+        self.assertNotIn("Granja Analytics -", dataload)
+        inserted_farm_names = re.findall(
+            r"\('991\d{5}',\s*'[A-Z]{2}',\s*'[^']+',\s*'[^']+',\s*'([^']+)'",
+            dataload,
+        )
+        self.assertEqual(len(inserted_farm_names), 15)
+        self.assertTrue(all("Analytics" not in name for name in inserted_farm_names))
+
+        states = set(
+            re.findall(
+                r"(?i)\(\s*'991\d{5}',\s*'([A-Z]{2})',\s*'[^']+',\s*'"
+                r"(?:Norte|Nordeste|Centro-Oeste|Sudeste|Sul)'",
+                dataload,
+            )
+        )
+        self.assertEqual(len(states), 15)
+
+        for region in ("Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"):
+            self.assertIn(f"'{region}'", dataload)
+
+        self.assertEqual(dataload.count("FROM generate_series(0, 35) AS months(month_index)"), 4)
+        self.assertIn("date_trunc('month', CURRENT_DATE)", dataload)
+        self.assertRegex(dataload, r"(?i)INSERT INTO public\.water_registries\s*\(")
+        self.assertRegex(dataload, r"(?i)INSERT INTO public\.energy_registries\s*\(")
+        self.assertRegex(dataload, r"(?i)INSERT INTO public\.lots\s*\([^)]*\blosts\b[^)]*\bcost\b")
+        self.assertRegex(dataload, r"(?i)INSERT INTO public\.chicken_left\s*\(chickens_count,\s*exit_date,\s*id_farm\)")
+        self.assertGreaterEqual(dataload.count("WHERE NOT EXISTS"), 6)
+
     def test_removed_farm_and_state_goal_columns_have_no_active_dependencies(self):
         schema = (ROOT / "sql" / "banco_ouros_fisico.sql").read_text(encoding="utf-8")
         farms = re.search(
