@@ -188,6 +188,38 @@ O executor aplica primeiro `sql/versionamento.sql`, depois processa os arquivos 
 
 No GitHub Actions, o workflow de aplicação instala as dependências e executa o mesmo comando usando os secrets correspondentes às variáveis `POSTGRES_*`.
 
+## Evolução diária do estoque de aves
+
+`sql/farm_chicken_stock_timeline.sql` cria a função de leitura
+`public.farm_chicken_stock_timeline(id_farm, start_date, starting_stock, until_date)`.
+Uma CTE recursiva calcula o saldo do próximo dia a partir do anterior, incluindo
+dias sem movimentos. O saldo inicial representa o fechamento de `start_date`;
+movimentos desse dia já devem estar incluídos nele.
+
+```sql
+SELECT *
+FROM public.farm_chicken_stock_timeline(
+    1, DATE '2026-10-01', 1000, DATE '2026-10-04'
+);
+```
+
+A primeira linha apresenta o saldo inicial e movimentos iguais a zero. As
+demais somam `lots.received_chickens` e descontam `lots.delivered_chickens`,
+`lots.losts` e saídas adicionais de `chicken_left`. Os movimentos de lotes são
+atribuídos a `delivery_date`, pois o modelo não possui uma data de recebimento.
+Lotes sem essa data ficam fora do cálculo. Essa convenção precisa corresponder
+ao uso dos dados; o resultado não reconstrói recebimentos ocorridos em outra
+data. Uma saída registrada em `chicken_left` não deve repetir uma perda já
+contabilizada no lote.
+
+Saldo negativo é apresentado para permitir a identificação de inconsistências.
+Fazenda inexistente, parâmetros nulos, saldo inicial negativo ou intervalo
+invertido retornam um conjunto vazio. A função usa as permissões do chamador,
+que precisa ter leitura de `farms`, `lots` e `chicken_left`. Ela calcula o saldo
+para o intervalo solicitado sem atualizar `farms.chickens_now`.
+
+Os testes desse cálculo são executados no PostgreSQL 16 pelo job de integração.
+
 ## Testes e qualidade
 
 Execute os testes existentes com:
