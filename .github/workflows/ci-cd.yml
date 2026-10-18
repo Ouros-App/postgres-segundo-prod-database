@@ -226,6 +226,7 @@ jobs:
                   cur.execute("ALTER TABLE state_goals ADD COLUMN id_farm INTEGER REFERENCES farms(id)")
                   cur.execute("DROP VIEW midas.farm_goals")
                   cur.execute("DROP VIEW midas.state_goals")
+                  cur.execute("DROP VIEW public.goals_progress")
                   cur.execute("ALTER TABLE farm_goals DROP CONSTRAINT farm_goals_status_nonempty")
                   cur.execute("ALTER TABLE farm_goals DROP COLUMN status")
                   cur.execute("ALTER TABLE state_goals ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Pendente'")
@@ -278,7 +279,8 @@ jobs:
                       "DELETE FROM controle_scripts_sql "
                       "WHERE arquivo IN ('remover_poultry_capacity_farms.sql', "
                       "'remover_state_goal_farm_id_and_farms_place.sql', "
-                      "'move_state_goal_status_to_farm_goals.sql')"
+                      "'move_state_goal_status_to_farm_goals.sql', "
+                      "'views_analytics.sql', 'analytics_sync_user.sql')"
                   )
                   Path("/tmp/ouros-legacy-schema.json").write_text(
                       json.dumps({
@@ -513,6 +515,118 @@ jobs:
                   cur.execute(f'SELECT COUNT(*) FROM "{table}"')
                   count = cur.fetchone()[0]
                   assert count > 0, f"seed recovery left {table} empty"
+          conn.close()
+          PY
+
+      - name: Verify supplementary analytics data load
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="app", password="app"
+          )
+          script = Path("sql/dataload_analytics.sql").read_text(encoding="utf-8")
+          with conn:
+              with conn.cursor() as cur:
+                  cur.execute(script)
+                  cur.execute(
+                      "UPDATE public.farms SET name = %s "
+                      "WHERE id_address = (SELECT id FROM public.addresses WHERE zip_code = %s)",
+                      ("Granja Analytics - Chapeco", "99100102"),
+                  )
+                  cur.execute(script)
+
+                  cur.execute(
+                      "SELECT COUNT(*) FROM public.farms AS farm "
+                      "JOIN public.addresses AS address ON address.id = farm.id_address "
+                      "WHERE address.zip_code LIKE '991001%'"
+                  )
+                  assert cur.fetchone()[0] == 15, "expected exactly 15 analytics farms after rerun"
+
+                  cur.execute(
+                      "SELECT COUNT(*) FROM public.farms AS farm "
+                      "JOIN public.addresses AS address ON address.id = farm.id_address "
+                      "WHERE address.zip_code LIKE '991001%' AND foto_url IS DISTINCT FROM ''"
+                  )
+                  assert cur.fetchone()[0] == 0, "analytics farms should have an empty foto_url"
+
+                  cur.execute(
+                      "SELECT COUNT(*) FROM public.farms AS farm "
+                      "JOIN public.addresses AS address ON address.id = farm.id_address "
+                      "WHERE address.zip_code LIKE '991001%' AND farm.name ILIKE '%analytics%'"
+                  )
+                  assert cur.fetchone()[0] == 0, "analytics marker should not remain in farm names"
+
+                  expected_rows = {
+                      "water_registries": 540,
+                      "energy_registries": 540,
+                      "lots": 540,
+                      "chicken_left": 540,
+                  }
+                  for table, expected in expected_rows.items():
+                      cur.execute(
+                          f"SELECT COUNT(*) FROM public.{table} AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%'"
+                      )
+                      assert cur.fetchone()[0] == expected, (
+                          f"expected {expected} analytics rows in {table} after rerun"
+                      )
+
+                  null_checks = {
+                      "farms": (
+                          "SELECT COUNT(*) FROM public.farms AS farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (area_property IS NULL OR region IS NULL OR chickens_now IS NULL "
+                          "OR foto_url IS NULL OR id_address IS NULL OR id_enterprise IS NULL)"
+                      ),
+                      "addresses": (
+                          "SELECT COUNT(*) FROM public.addresses AS address "
+                          "JOIN public.farms AS farm ON farm.id_address = address.id "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (address.zip_code IS NULL OR address.state IS NULL OR address.city IS NULL "
+                          "OR address.number IS NULL OR address.country IS NULL)"
+                      ),
+                      "water_registries": (
+                          "SELECT COUNT(*) FROM public.water_registries AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (record.registration_date IS NULL OR record.start_hydrometer IS NULL "
+                          "OR record.end_hydrometer IS NULL)"
+                      ),
+                      "energy_registries": (
+                          "SELECT COUNT(*) FROM public.energy_registries AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (record.registration_date IS NULL OR record.energy_consumption IS NULL)"
+                      ),
+                      "lots": (
+                          "SELECT COUNT(*) FROM public.lots AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (record.received_chickens IS NULL OR record.delivered_chickens IS NULL "
+                          "OR record.delivery_date IS NULL OR record.id_enterprise IS NULL "
+                          "OR record.losts IS NULL OR record.cost IS NULL)"
+                      ),
+                      "chicken_left": (
+                          "SELECT COUNT(*) FROM public.chicken_left AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (record.chickens_count IS NULL OR record.exit_date IS NULL)"
+                      ),
+                  }
+                  for table, query in null_checks.items():
+                      cur.execute(query)
+                      assert cur.fetchone()[0] == 0, f"analytics data in {table} contains NULL values"
           conn.close()
           PY
 

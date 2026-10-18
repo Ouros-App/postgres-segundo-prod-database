@@ -40,8 +40,6 @@ database:
       mode: on_change
     - file: atualiza_updated_at_analytics.sql
       mode: on_change
-    - file: analytics_sync_user.sql
-      mode: on_change
     - file: keycloak_user_link.sql
       mode: on_change
     - file: ms_auth_service.sql
@@ -76,6 +74,9 @@ database:
         ) OR EXISTS (
           SELECT 1 FROM adms LIMIT 1
         )
+    - file: dataload_analytics.sql
+      mode: never
+      # Carga sintetica adicional; o CI a executa somente no PostgreSQL descartavel.
     - file: atualiza_consumo_mensal.sql
       mode: never
     - file: views_galinhas_consumo.sql
@@ -89,4 +90,8 @@ database:
     - file: rpa_preservar_timestamps.sql
       mode: once
     - file: midas-resource-import.sql
+      mode: on_change
+    - file: views_analytics.sql
+      mode: on_change
+    - file: analytics_sync_user.sql
       mode: on_change
