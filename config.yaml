@@ -20,6 +20,8 @@ database:
   execution_order:
     - file: banco_ouros_fisico.sql
       mode: on_change
+    - file: farm_chicken_stock_timeline.sql
+      mode: on_change
     - file: move_state_goal_status_to_farm_goals.sql
       mode: once
     - file: nullable_legacy_missing_columns.sql
@@ -72,6 +74,9 @@ database:
         ) OR EXISTS (
           SELECT 1 FROM adms LIMIT 1
         )
+    - file: dataload_analytics.sql
+      mode: never
+      # Carga sintetica adicional; o CI a executa somente no PostgreSQL descartavel.
     - file: atualiza_consumo_mensal.sql
       mode: never
     - file: views_galinhas_consumo.sql

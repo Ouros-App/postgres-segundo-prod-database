@@ -124,6 +124,7 @@ class ApplySqlTest(unittest.TestCase):
             [(path.name, mode, baseline_query is not None) for path, mode, baseline_query in entries],
             [
                 ("banco_ouros_fisico.sql", "on_change", False),
+                ("farm_chicken_stock_timeline.sql", "on_change", False),
                 ("move_state_goal_status_to_farm_goals.sql", "once", False),
                 ("nullable_legacy_missing_columns.sql", "once", False),
                 ("rpa_nullable_fields.sql", "once", False),
@@ -142,6 +143,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("atualiza_farms-chicken-left.sql", "once", False),
                 ("atualiza_farm-owners-campos-opcionais.sql", "once", False),
                 ("dataload_inicial.sql", "once", True),
+                ("dataload_analytics.sql", "never", False),
                 ("atualiza_consumo_mensal.sql", "never", False),
                 ("views_galinhas_consumo.sql", "on_change", False),
                 ("dataload_lots_farm-owners.sql", "never", False),

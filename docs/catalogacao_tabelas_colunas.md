@@ -279,6 +279,38 @@ Pagamentos associados ao plano de uma empresa. A referência composta garante qu
 | `id_enterprise` | `INTEGER NOT NULL` | Empresa pagadora; compõe a FK para `enterprise_plans`. |
 | `id_enterprise_plan` | `INTEGER NOT NULL` | Contratação do plano relacionada ao pagamento; compõe a FK para `enterprise_plans`. |
 
+### `device_tokens`
+
+Armazena os tokens de dispositivos para envio de Push Notifications via Firebase Cloud Messaging (FCM).
+
+| Coluna | Tipo e regras | Descrição |
+|---|---|---|
+| `id` | `SERIAL`, PK | Identificador sequencial do token de dispositivo. |
+| `user_id` | `INTEGER NOT NULL`, maior que zero | Identificador do usuário proprietário do dispositivo. |
+| `user_role` | `VARCHAR(50) NOT NULL`, restrito a `FARM_OWNER`, `COMPANY_EMPLOYEE` ou `ADM` | Perfil/papel do usuário associado ao token. |
+| `token` | `VARCHAR(500) NOT NULL UNIQUE`, não vazio | Token de registro FCM do dispositivo. |
+| `platform` | `VARCHAR(20) NOT NULL`, restrito a `ANDROID`, `IOS` ou `WEB` | Plataforma do dispositivo cliente. |
+| `created_at` | `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` | Data e hora de cadastro do token. |
+| `updated_at` | `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` | Data e hora de cadastro ou da última atualização do token. |
+
+### `notifications`
+
+Registra notificações enviadas aos usuários (in-app e push), com vínculo opcional a dicas técnicas ou eventos de ranking.
+
+| Coluna | Tipo e regras | Descrição |
+|---|---|---|
+| `id` | `SERIAL`, PK | Identificador sequencial da notificação. |
+| `user_id` | `INTEGER NOT NULL`, maior que zero | Identificador do usuário destinatário. |
+| `user_role` | `VARCHAR(50) NOT NULL`, restrito a `FARM_OWNER`, `COMPANY_EMPLOYEE` ou `ADM` | Perfil/papel do usuário destinatário. |
+| `title` | `VARCHAR(150) NOT NULL`, não vazio | Título da notificação. |
+| `message` | `TEXT NOT NULL`, não vazio | Conteúdo textual da notificação. |
+| `type` | `VARCHAR(50) NOT NULL DEFAULT 'RANKING_UPDATED'`, não vazio | Tipo do evento de notificação (ex.: `RANKING_UPDATED`, `TIP_CREATED`). |
+| `id_tip` | `INTEGER`, aceita `NULL`, FK → `tips.id` com `ON DELETE SET NULL` | Dica técnica relacionada à notificação, quando aplicável. |
+| `data_payload` | `TEXT`, aceita `NULL` | Carga de dados arbitrária ou payload textual de suporte à notificação. |
+| `is_read` | `BOOLEAN NOT NULL DEFAULT FALSE` | Indica se a notificação já foi lida pelo usuário. |
+| `created_at` | `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` | Data e hora de geração da notificação. |
+| `read_at` | `TIMESTAMP`, aceita `NULL`, maior ou igual a `created_at` | Data e hora em que a notificação foi lida. |
+
 ## Tabelas de histórico
 
 Os gatilhos de `sql/triggers_logs.sql` copiam alterações de algumas tabelas para tabelas de histórico. As colunas de log não são declaradas como PK/FK no DDL correspondente.
@@ -394,6 +426,8 @@ Relaciona uma role de banco de dados autorizada ao proprietário de fazenda que 
 - `enterprise_plans` liga empresas e planos; `payments` referencia a contratação composta por empresa e plano.
 - Metas estaduais relacionam-se a regiões por `regions_goals` e `state_goal_regions`; `farm_goals` associa fazendas às metas.
 - `midas.importer_identities` liga roles autenticadas aos proprietários autorizados para importação.
+- `notifications` aponta opcionalmente para uma dica (`tips.id`) e vincula-se polimorficamente a usuários por `(user_id, user_role)`.
+- `device_tokens` vincula-se a usuários por `(user_id, user_role)` e mantém unicidade de token para envio de notificações FCM.
 
 ## Observações
 
