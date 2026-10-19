@@ -291,7 +291,7 @@ Armazena os tokens de dispositivos para envio de Push Notifications via Firebase
 | `token` | `VARCHAR(500) NOT NULL UNIQUE`, não vazio | Token de registro FCM do dispositivo. |
 | `platform` | `VARCHAR(20) NOT NULL`, restrito a `ANDROID`, `IOS` ou `WEB` | Plataforma do dispositivo cliente. |
 | `created_at` | `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` | Data e hora de cadastro do token. |
-| `updated_at` | `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` | Data e hora da última atualização do token; mantida por gatilho. |
+| `updated_at` | `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP` | Data e hora de cadastro ou da última atualização do token. |
 
 ### `notifications`
 
