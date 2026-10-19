@@ -301,21 +301,6 @@ def ensure_database(cfg: dict) -> None:
                     "estado de login existente preservado (role novo permanece NOLOGIN)"
                 )
 
-            activity_password = os.getenv("ACTIVITY_RECORDER_PASSWORD")
-            configure_service_role(
-                cur,
-                db["name"],
-                "activity_recorder",
-                5,
-                activity_password,
-                login=True if activity_password else None,
-                read_only=False,
-            )
-            if not activity_password:
-                print(
-                    "[WARN] ACTIVITY_RECORDER_PASSWORD ausente; "
-                    "estado de login existente preservado (role novo permanece NOLOGIN)"
-                )
     finally:
         conn.close()
 

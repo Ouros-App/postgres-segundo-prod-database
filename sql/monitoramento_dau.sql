@@ -1,99 +1,93 @@
-
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
-CREATE TABLE IF NOT EXISTS public.user_daily_activity (
+CREATE TABLE IF NOT EXISTS public.database_role_daily_activity (
     activity_date DATE NOT NULL,
-    user_type TEXT NOT NULL
-        CHECK (user_type IN ('farm_owner', 'company_employee', 'adm')),
-    user_id INTEGER NOT NULL CHECK (user_id > 0),
+    database_role TEXT NOT NULL CHECK (btrim(database_role) <> ''),
     first_recorded_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (activity_date, user_type, user_id)
+    PRIMARY KEY (activity_date, database_role)
 );
 
-
-CREATE OR REPLACE FUNCTION public.record_daily_activity(
-    p_user_type TEXT,
-    p_user_id INTEGER
-)
-RETURNS BOOLEAN
+CREATE OR REPLACE FUNCTION public.capture_database_write_activity()
+RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp
 AS $function$
 DECLARE
     v_recorded_at TIMESTAMPTZ;
-    v_activity_date DATE;
-    v_inserted_rows INTEGER;
 BEGIN
-    IF p_user_type IS NULL
-       OR p_user_type NOT IN ('farm_owner', 'company_employee', 'adm') THEN
-        RAISE EXCEPTION 'Tipo de usuário inválido: %', p_user_type
-            USING ERRCODE = '22023';
-    END IF;
-
-    IF p_user_id IS NULL OR p_user_id <= 0 THEN
-        RAISE EXCEPTION 'ID de usuário deve ser positivo'
-            USING ERRCODE = '22023';
-    END IF;
-
-    IF p_user_type = 'farm_owner' THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM public.farm_owners AS account WHERE account.id = p_user_id
-        ) THEN
-            RAISE EXCEPTION 'Conta de usuário inexistente'
-                USING ERRCODE = '22023';
-        END IF;
-    ELSIF p_user_type = 'company_employee' THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM public.company_employees AS account WHERE account.id = p_user_id
-        ) THEN
-            RAISE EXCEPTION 'Conta de usuário inexistente'
-                USING ERRCODE = '22023';
-        END IF;
-    ELSIF NOT EXISTS (
-        SELECT 1 FROM public.adms AS account WHERE account.id = p_user_id
-    ) THEN
-        RAISE EXCEPTION 'Conta de usuário inexistente'
-            USING ERRCODE = '22023';
-    END IF;
-
     v_recorded_at := pg_catalog.clock_timestamp();
-    v_activity_date := (v_recorded_at AT TIME ZONE 'America/Sao_Paulo')::DATE;
 
-    INSERT INTO public.user_daily_activity (
-        activity_date, user_type, user_id, first_recorded_at
+    INSERT INTO public.database_role_daily_activity (
+        activity_date,
+        database_role,
+        first_recorded_at
     )
-    VALUES (v_activity_date, p_user_type, p_user_id, v_recorded_at)
-    ON CONFLICT (activity_date, user_type, user_id) DO NOTHING;
+    VALUES (
+        (v_recorded_at AT TIME ZONE 'America/Sao_Paulo')::DATE,
+        session_user::TEXT,
+        v_recorded_at
+    )
+    ON CONFLICT (activity_date, database_role) DO NOTHING;
 
-    GET DIAGNOSTICS v_inserted_rows = ROW_COUNT;
-    RETURN v_inserted_rows = 1;
+    RETURN NULL;
 END;
 $function$;
 
+REVOKE ALL PRIVILEGES ON FUNCTION public.capture_database_write_activity() FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON TABLE public.database_role_daily_activity FROM PUBLIC;
 
-CREATE OR REPLACE VIEW public.dau_daily AS
-SELECT activity_date, COUNT(*)::BIGINT AS active_users
-FROM public.user_daily_activity
+DROP FUNCTION IF EXISTS public.record_daily_activity(TEXT, INTEGER);
+DROP VIEW IF EXISTS public.dau_daily_by_user_type;
+DROP VIEW IF EXISTS public.dau_daily;
+
+CREATE VIEW public.dau_daily AS
+SELECT activity_date, COUNT(*)::BIGINT AS active_database_roles
+FROM public.database_role_daily_activity
 GROUP BY activity_date;
 
+CREATE VIEW public.dau_daily_by_database_role AS
+SELECT activity_date, database_role, first_recorded_at
+FROM public.database_role_daily_activity;
 
-CREATE OR REPLACE VIEW public.dau_daily_by_user_type AS
-SELECT activity_date, user_type, COUNT(*)::BIGINT AS active_users
-FROM public.user_daily_activity
-GROUP BY activity_date, user_type;
+GRANT SELECT ON TABLE
+    public.dau_daily,
+    public.dau_daily_by_database_role
+TO analytics_sync_ro;
 
-
-REVOKE ALL PRIVILEGES ON SCHEMA public FROM activity_recorder;
-GRANT USAGE ON SCHEMA public TO activity_recorder;
-
-REVOKE ALL PRIVILEGES ON TABLE
-    public.user_daily_activity,
-    public.farm_owners,
-    public.company_employees,
-    public.adms
-FROM activity_recorder;
-
-REVOKE ALL PRIVILEGES ON FUNCTION public.record_daily_activity(TEXT, INTEGER) FROM PUBLIC;
-REVOKE ALL PRIVILEGES ON FUNCTION public.record_daily_activity(TEXT, INTEGER) FROM activity_recorder;
-GRANT EXECUTE ON FUNCTION public.record_daily_activity(TEXT, INTEGER) TO activity_recorder;
+DO $do$
+DECLARE
+    v_table RECORD;
+    v_trigger_name CONSTANT TEXT := 'trg_capture_database_write_activity';
+BEGIN
+    FOR v_table IN
+        SELECT c.relname
+        FROM pg_catalog.pg_class AS c
+        JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relkind IN ('r', 'p')
+          AND c.relname NOT IN (
+              'database_role_daily_activity',
+              'user_daily_activity',
+              'controle_versoes'
+          )
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1
+            FROM pg_catalog.pg_trigger AS t
+            WHERE t.tgrelid = pg_catalog.to_regclass(
+                pg_catalog.format('%I.%I', 'public', v_table.relname)
+            )
+              AND t.tgname = v_trigger_name
+              AND NOT t.tgisinternal
+        ) THEN
+            EXECUTE pg_catalog.format(
+                'CREATE TRIGGER %I AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON %I.%I FOR EACH STATEMENT EXECUTE FUNCTION public.capture_database_write_activity()',
+                v_trigger_name,
+                'public',
+                v_table.relname
+            );
+        END IF;
+    END LOOP;
+END;
+$do$;

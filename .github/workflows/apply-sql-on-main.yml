@@ -52,6 +52,5 @@ jobs:
           POSTGRES_ROOT_PASSWORD: ${{ secrets.POSTGRES_ROOT_PASSWORD }}
           ANALYTICS_SYNC_PASSWORD: ${{ secrets.ANALYTICS_SYNC_PASSWORD }}
           MS_AUTH_SERVICE_PASSWORD: ${{ secrets.MS_AUTH_SERVICE_PASSWORD }}
-          ACTIVITY_RECORDER_PASSWORD: ${{ secrets.ACTIVITY_RECORDER_PASSWORD }}
           GITHUB_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: python scripts/apply_sql.py
