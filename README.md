@@ -190,8 +190,12 @@ No GitHub Actions, o workflow de aplicação instala as dependências e executa 
 
 A migration `audience_engine_metadata.sql` cria apenas os ponteiros dos snapshots
 de audiência e os vínculos revisados entre dicas e audiências. Ela não cria
-contas de login; provisione separadamente as contas de leitura da origem e de
-escrita dos metadados após a aplicação da migration.
+contas de login. Antes de usar a aplicação, crie as contas separadas e aplique
+os grants: `audience_source` recebe `CONNECT`, `USAGE` em `public` e `SELECT`
+em `public.farms`, `public.farm_owners` e `public.water_registries`;
+`audience_metadata` recebe `CONNECT`, `USAGE` em `public`, `SELECT` em
+`public.tip_audience_refs` e `SELECT`, `INSERT` e `UPDATE` em
+`public.audience_snapshot_refs`.
 
 ## Evolução diária do estoque de aves
 
