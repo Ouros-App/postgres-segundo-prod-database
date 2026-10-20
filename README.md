@@ -188,6 +188,11 @@ O executor aplica primeiro `sql/versionamento.sql`, depois processa os arquivos 
 
 No GitHub Actions, o workflow de aplicação instala as dependências e executa o mesmo comando usando os secrets correspondentes às variáveis `POSTGRES_*`.
 
+A migration `audience_engine_metadata.sql` cria apenas os ponteiros dos snapshots
+de audiência e os vínculos revisados entre dicas e audiências. Ela não cria
+contas de login; provisione separadamente as contas de leitura da origem e de
+escrita dos metadados após a aplicação da migration.
+
 ## Evolução diária do estoque de aves
 
 `sql/farm_chicken_stock_timeline.sql` cria a função de leitura
