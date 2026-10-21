@@ -152,5 +152,16 @@ class DataloadSchemaCompatibilityTests(unittest.TestCase):
         )
 
 
+    def test_notifications_schema_includes_event_id(self):
+        schema = (ROOT / "sql" / "banco_ouros_fisico.sql").read_text(encoding="utf-8")
+        notifications_definition = re.search(
+            r"CREATE TABLE IF NOT EXISTS notifications\s*\((.*?)\n\);",
+            schema,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        self.assertIsNotNone(notifications_definition)
+        self.assertRegex(notifications_definition.group(1), r"(?i)\bevent_id\b")
+
+
 if __name__ == "__main__":
     unittest.main()

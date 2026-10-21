@@ -99,5 +99,7 @@ database:
       mode: on_change
     - file: analytics_sync_user.sql
       mode: on_change
+    - file: monitoramento_dau.sql
+      mode: always
     - file: audience_engine_metadata.sql
       mode: on_change
