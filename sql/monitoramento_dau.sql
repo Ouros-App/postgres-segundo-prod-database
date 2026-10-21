@@ -39,14 +39,13 @@ REVOKE ALL PRIVILEGES ON TABLE public.database_role_daily_activity FROM PUBLIC;
 
 DROP FUNCTION IF EXISTS public.record_daily_activity(TEXT, INTEGER);
 DROP VIEW IF EXISTS public.dau_daily_by_user_type;
-DROP VIEW IF EXISTS public.dau_daily;
 
-CREATE VIEW public.dau_daily AS
+CREATE OR REPLACE VIEW public.dau_daily AS
 SELECT activity_date, COUNT(*)::BIGINT AS active_database_roles
 FROM public.database_role_daily_activity
 GROUP BY activity_date;
 
-CREATE VIEW public.dau_daily_by_database_role AS
+CREATE OR REPLACE VIEW public.dau_daily_by_database_role AS
 SELECT activity_date, database_role, first_recorded_at
 FROM public.database_role_daily_activity;
 
@@ -91,3 +90,4 @@ BEGIN
     END LOOP;
 END;
 $do$;
+
