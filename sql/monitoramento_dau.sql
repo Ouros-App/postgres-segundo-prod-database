@@ -1,5 +1,3 @@
-REVOKE CREATE ON SCHEMA public FROM PUBLIC;
-
 CREATE TABLE IF NOT EXISTS public.database_role_daily_activity (
     activity_date DATE NOT NULL,
     database_role TEXT NOT NULL CHECK (btrim(database_role) <> ''),
@@ -16,6 +14,9 @@ CREATE TABLE IF NOT EXISTS public.database_write_events (
     table_name TEXT NOT NULL,
     action TEXT NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'))
 );
+
+CREATE INDEX IF NOT EXISTS database_write_events_event_at_event_id_idx
+    ON public.database_write_events (event_at DESC, event_id DESC);
 
 CREATE OR REPLACE FUNCTION public.capture_database_write_activity()
 RETURNS TRIGGER
@@ -45,6 +46,14 @@ BEGIN
         TG_OP
     );
 
+    DELETE FROM public.database_write_events AS logged_event
+    WHERE logged_event.event_id IN (
+        SELECT event_id
+        FROM public.database_write_events
+        ORDER BY event_at DESC, event_id DESC
+        OFFSET 10000
+    );
+
     INSERT INTO public.database_role_daily_activity (
         activity_date,
         database_role,
@@ -60,6 +69,14 @@ BEGIN
     RETURN NULL;
 END;
 $function$;
+
+DELETE FROM public.database_write_events AS logged_event
+WHERE logged_event.event_id IN (
+    SELECT event_id
+    FROM public.database_write_events
+    ORDER BY event_at DESC, event_id DESC
+    OFFSET 10000
+);
 
 REVOKE ALL PRIVILEGES ON FUNCTION public.capture_database_write_activity() FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE public.database_role_daily_activity FROM PUBLIC;
