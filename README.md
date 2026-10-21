@@ -136,6 +136,31 @@ python scripts/rpa_pre_novo.py reconcile --after-load \
   --report reports/rpa-pre-novo-reconciliation-after.json
 ```
 
+## Monitoramento DAU
+
+`sql/monitoramento_dau.sql` instala triggers de escrita nas tabelas do schema
+`public`. Cada `INSERT`, `UPDATE`, `DELETE` ou `TRUNCATE` registra o horário, a
+credencial PostgreSQL (`session_user`), o schema, a tabela e a ação na tabela
+`public.database_write_events`, consultável pela view
+`public.database_write_activity_log`. O log mantém no máximo 25.000 eventos;
+quando o limite é ultrapassado, os eventos mais antigos são removidos. A
+atividade diária continua deduplicada por credencial na tabela
+`public.database_role_daily_activity`; a data segue `America/Sao_Paulo`. Não é
+necessário chamar uma função pelo backend nem configurar uma senha específica
+para o monitoramento.
+
+Esta métrica conta credenciais do banco que fizeram operações de escrita, não
+contas individuais do aplicativo. `session_user` identifica a credencial usada
+para conectar ao PostgreSQL; quando o app compartilha uma credencial, não permite
+identificar qual pessoa do app fez a alteração. Cada registro representa um
+comando, não cada linha afetada; comandos que alterem zero linhas também são
+registrados. Operações feitas por outras ferramentas com credenciais diferentes
+também entram no log. As views `public.dau_daily`,
+`public.dau_daily_by_database_role` e `public.database_write_activity_log` podem
+ser lidas por `analytics_sync_ro`, sem acesso direto às tabelas de atividade. As
+views de DAU omitem dias sem registros; relatórios por intervalo devem gerar
+calendário e preencher esses dias com zero.
+
 ## Pré-requisitos
 
 - Python 3.12, usado pelo workflow de aplicação.
@@ -250,6 +275,7 @@ O workflow `.github/workflows/ci-cd.yml` valida a presença do scaffold, executa
 │   └── apply_sql.py
 ├── sql/
 │   ├── banco_ouros_fisico.sql
+│   ├── monitoramento_dau.sql
 │   └── versionamento.sql
 └── tests/
     └── test_apply_sql.py
@@ -272,3 +298,4 @@ Este projeto está sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE).
 <!-- CONTRIBUTORS:END -->
 
 > Atualizado automaticamente semanalmente pelo workflow de metadados do README.
+

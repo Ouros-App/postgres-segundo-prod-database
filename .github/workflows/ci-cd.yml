@@ -648,7 +648,8 @@ jobs:
           columns_migration='sql/remover_state_goal_farm_id_and_farms_place.sql'
           status_migration='sql/move_state_goal_status_to_farm_goals.sql'
           timestamp_migration='sql/rpa_preservar_timestamps.sql'
-          if find sql -type f -name '*.sql' ! -path "$migration" ! -path "$farms_migration" ! -path "$columns_migration" ! -path "$status_migration" ! -path "$timestamp_migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
+          dau_migration='sql/monitoramento_dau.sql'
+          if find sql -type f -name '*.sql' ! -path "$migration" ! -path "$farms_migration" ! -path "$columns_migration" ! -path "$status_migration" ! -path "$timestamp_migration" ! -path "$dau_migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
             echo "Destructive SQL is forbidden"
             exit 1
           fi
