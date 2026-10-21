@@ -7,6 +7,16 @@ CREATE TABLE IF NOT EXISTS public.database_role_daily_activity (
     PRIMARY KEY (activity_date, database_role)
 );
 
+CREATE TABLE IF NOT EXISTS public.database_write_events (
+    event_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    event_at TIMESTAMPTZ NOT NULL,
+    activity_date DATE NOT NULL,
+    database_user TEXT NOT NULL CHECK (btrim(database_user) <> ''),
+    table_schema TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'))
+);
+
 CREATE OR REPLACE FUNCTION public.capture_database_write_activity()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -17,6 +27,23 @@ DECLARE
     v_recorded_at TIMESTAMPTZ;
 BEGIN
     v_recorded_at := pg_catalog.clock_timestamp();
+
+    INSERT INTO public.database_write_events (
+        event_at,
+        activity_date,
+        database_user,
+        table_schema,
+        table_name,
+        action
+    )
+    VALUES (
+        v_recorded_at,
+        (v_recorded_at AT TIME ZONE 'America/Sao_Paulo')::DATE,
+        session_user::TEXT,
+        TG_TABLE_SCHEMA,
+        TG_TABLE_NAME,
+        TG_OP
+    );
 
     INSERT INTO public.database_role_daily_activity (
         activity_date,
@@ -36,6 +63,7 @@ $function$;
 
 REVOKE ALL PRIVILEGES ON FUNCTION public.capture_database_write_activity() FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE public.database_role_daily_activity FROM PUBLIC;
+REVOKE ALL PRIVILEGES ON TABLE public.database_write_events FROM PUBLIC;
 
 DROP FUNCTION IF EXISTS public.record_daily_activity(TEXT, INTEGER);
 DROP VIEW IF EXISTS public.dau_daily_by_user_type;
@@ -49,9 +77,21 @@ CREATE OR REPLACE VIEW public.dau_daily_by_database_role AS
 SELECT activity_date, database_role, first_recorded_at
 FROM public.database_role_daily_activity;
 
+CREATE OR REPLACE VIEW public.database_write_activity_log AS
+SELECT
+    event_id,
+    event_at,
+    activity_date,
+    database_user,
+    table_schema,
+    table_name,
+    action
+FROM public.database_write_events;
+
 GRANT SELECT ON TABLE
     public.dau_daily,
-    public.dau_daily_by_database_role
+    public.dau_daily_by_database_role,
+    public.database_write_activity_log
 TO analytics_sync_ro;
 
 DO $do$
@@ -67,6 +107,7 @@ BEGIN
           AND c.relkind IN ('r', 'p')
           AND c.relname NOT IN (
               'database_role_daily_activity',
+              'database_write_events',
               'user_daily_activity',
               'controle_versoes'
           )
