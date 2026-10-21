@@ -142,10 +142,12 @@ python scripts/rpa_pre_novo.py reconcile --after-load \
 `public`. Cada `INSERT`, `UPDATE`, `DELETE` ou `TRUNCATE` registra o horário, a
 credencial PostgreSQL (`session_user`), o schema, a tabela e a ação na tabela
 `public.database_write_events`, consultável pela view
-`public.database_write_activity_log`. A atividade diária continua deduplicada
-por credencial na tabela `public.database_role_daily_activity`; a data segue
-`America/Sao_Paulo`. Não é necessário chamar uma função pelo backend nem
-configurar uma senha específica para o monitoramento.
+`public.database_write_activity_log`. O log mantém no máximo 10.000 eventos;
+quando o limite é ultrapassado, os eventos mais antigos são removidos. A
+atividade diária continua deduplicada por credencial na tabela
+`public.database_role_daily_activity`; a data segue `America/Sao_Paulo`. Não é
+necessário chamar uma função pelo backend nem configurar uma senha específica
+para o monitoramento.
 
 Esta métrica conta credenciais do banco que fizeram operações de escrita, não
 contas individuais do aplicativo. `session_user` identifica a credencial usada
