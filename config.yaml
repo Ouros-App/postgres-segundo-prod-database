@@ -58,6 +58,8 @@ database:
       mode: once
     - file: adiciona_notifications_event_id.sql
       mode: once
+    - file: adiciona_tips_title_foto_url.sql
+      mode: once
     - file: dataload_inicial.sql
       mode: once
       # Seed somente em banco realmente vazio. Se qualquer dado de aplicacao existir,
