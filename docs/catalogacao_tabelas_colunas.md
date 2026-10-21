@@ -119,7 +119,9 @@ Conteúdo de dicas disponibilizado pelo sistema.
 | Coluna | Tipo e regras | Descrição |
 |---|---|---|
 | `id` | `SERIAL`, PK | Identificador da dica. |
-| `tip` | `TEXT NOT NULL` | Texto da dica; não pode ser vazio. |
+| `title` | `VARCHAR(150) NOT NULL DEFAULT 'Dica Operacional'`, não vazio | Título da dica técnica. |
+| `tip` | `TEXT NOT NULL` | Texto ou corpo descritivo da dica; não pode ser vazio. |
+| `foto_url` | `TEXT`, aceita `NULL` | URL da imagem ou hero banner ilustrativo da dica. |
 
 ### `categories`
 

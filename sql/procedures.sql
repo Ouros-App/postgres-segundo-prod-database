@@ -1,7 +1,10 @@
 DROP PROCEDURE IF EXISTS create_tip(TEXT, INTEGER, INTEGER);
+DROP PROCEDURE IF EXISTS create_tip(VARCHAR, TEXT, TEXT, INTEGER, INTEGER, INTEGER);
 
 CREATE OR REPLACE PROCEDURE create_tip(
+    IN p_title VARCHAR(150),
     IN p_tip TEXT,
+    IN p_foto_url TEXT,
     IN p_id_farm INTEGER,
     IN p_id_category INTEGER,
     INOUT p_tip_id INTEGER DEFAULT NULL
@@ -9,8 +12,8 @@ CREATE OR REPLACE PROCEDURE create_tip(
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    INSERT INTO tips (tip)
-    VALUES (p_tip)
+    INSERT INTO tips (title, tip, foto_url)
+    VALUES (p_title, p_tip, p_foto_url)
     RETURNING id INTO p_tip_id;
 
     INSERT INTO farms_tips (id_farm, id_tip)
@@ -22,6 +25,19 @@ BEGIN
         VALUES (p_tip_id, p_id_category)
         ON CONFLICT (id_tip, id_category) DO NOTHING;
     END IF;
+END;
+$$;
+
+CREATE OR REPLACE PROCEDURE create_tip(
+    IN p_tip TEXT,
+    IN p_id_farm INTEGER,
+    IN p_id_category INTEGER,
+    INOUT p_tip_id INTEGER DEFAULT NULL
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    CALL create_tip('Dica Operacional', p_tip, NULL, p_id_farm, p_id_category, p_tip_id);
 END;
 $$;
 

@@ -39,7 +39,10 @@ CREATE TABLE IF NOT EXISTS chicken_left (
 
 CREATE TABLE IF NOT EXISTS tips (
     id SERIAL PRIMARY KEY,
-    tip TEXT NOT NULL CHECK(length(tip) > 0)
+    title VARCHAR(150) NOT NULL DEFAULT 'Dica Operacional'
+        CHECK (btrim(title) <> ''),
+    tip TEXT NOT NULL CHECK(length(tip) > 0),
+    foto_url TEXT
 );
 
 CREATE TABLE IF NOT EXISTS categories (

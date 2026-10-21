@@ -127,6 +127,17 @@ class DataloadSchemaCompatibilityTests(unittest.TestCase):
         self.assertIn("SELECT fg.status", progress_function)
         self.assertNotIn("SELECT sg.status", progress_function)
 
+    def test_tips_schema_includes_title_and_foto_url(self):
+        schema = (ROOT / "sql" / "banco_ouros_fisico.sql").read_text(encoding="utf-8")
+        tips_definition = re.search(
+            r"CREATE TABLE IF NOT EXISTS tips\s*\((.*?)\n\);",
+            schema,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        self.assertIsNotNone(tips_definition)
+        self.assertRegex(tips_definition.group(1), r"(?i)\btitle\b")
+        self.assertRegex(tips_definition.group(1), r"(?i)\bfoto_url\b")
+
     def test_lots_postload_does_not_reference_removed_gain_column(self):
         schema = (ROOT / "sql" / "banco_ouros_fisico.sql").read_text(encoding="utf-8")
         postload = (ROOT / "sql" / "dataload_lots_farm-owners.sql").read_text(encoding="utf-8")
