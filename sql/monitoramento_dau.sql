@@ -26,6 +26,7 @@ SET search_path = pg_catalog, pg_temp
 AS $function$
 DECLARE
     v_recorded_at TIMESTAMPTZ;
+    v_event_id BIGINT;
 BEGIN
     v_recorded_at := pg_catalog.clock_timestamp();
 
@@ -44,15 +45,13 @@ BEGIN
         TG_TABLE_SCHEMA,
         TG_TABLE_NAME,
         TG_OP
-    );
+    )
+    RETURNING event_id INTO v_event_id;
 
-    DELETE FROM public.database_write_events AS logged_event
-    WHERE logged_event.event_id IN (
-        SELECT event_id
-        FROM public.database_write_events
-        ORDER BY event_at DESC, event_id DESC
-        OFFSET 25000
-    );
+    IF v_event_id > 25000 THEN
+        DELETE FROM public.database_write_events
+        WHERE event_id <= v_event_id - 25000;
+    END IF;
 
     INSERT INTO public.database_role_daily_activity (
         activity_date,
@@ -148,4 +147,5 @@ BEGIN
     END LOOP;
 END;
 $do$;
+
 
