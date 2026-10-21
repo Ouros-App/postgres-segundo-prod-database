@@ -300,6 +300,7 @@ Registra notificações enviadas aos usuários (in-app e push), com vínculo opc
 | Coluna | Tipo e regras | Descrição |
 |---|---|---|
 | `id` | `SERIAL`, PK | Identificador sequencial da notificação. |
+| `event_id` | `VARCHAR(255)`, aceita `NULL`, UNIQUE (parcial) | Identificador único de evento externo para garantia de idempotência e deduplicação de notificações em lote. |
 | `user_id` | `INTEGER NOT NULL`, maior que zero | Identificador do usuário destinatário. |
 | `user_role` | `VARCHAR(50) NOT NULL`, restrito a `FARM_OWNER`, `COMPANY_EMPLOYEE` ou `ADM` | Perfil/papel do usuário destinatário. |
 | `title` | `VARCHAR(150) NOT NULL`, não vazio | Título da notificação. |

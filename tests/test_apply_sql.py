@@ -142,6 +142,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("atualiza_lots_farm-owners.sql", "once", False),
                 ("atualiza_farms-chicken-left.sql", "once", False),
                 ("atualiza_farm-owners-campos-opcionais.sql", "once", False),
+                ("adiciona_notifications_event_id.sql", "once", False),
                 ("dataload_inicial.sql", "once", True),
                 ("dataload_analytics.sql", "never", False),
                 ("atualiza_consumo_mensal.sql", "never", False),
@@ -153,6 +154,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("midas-resource-import.sql", "on_change", False),
                 ("views_analytics.sql", "on_change", False),
                 ("analytics_sync_user.sql", "on_change", False),
+                ("audience_engine_metadata.sql", "on_change", False),
             ],
         )
 
