@@ -139,19 +139,25 @@ python scripts/rpa_pre_novo.py reconcile --after-load \
 ## Monitoramento DAU
 
 `sql/monitoramento_dau.sql` instala triggers de escrita nas tabelas do schema
-`public`. Um `INSERT`, `UPDATE`, `DELETE` ou `TRUNCATE` registra uma linha por dia
-e credencial PostgreSQL na tabela `public.database_role_daily_activity`; a data
-segue `America/Sao_Paulo`. Não é necessário chamar uma função pelo backend nem
+`public`. Cada `INSERT`, `UPDATE`, `DELETE` ou `TRUNCATE` registra o horário, a
+credencial PostgreSQL (`session_user`), o schema, a tabela e a ação na tabela
+`public.database_write_events`, consultável pela view
+`public.database_write_activity_log`. A atividade diária continua deduplicada
+por credencial na tabela `public.database_role_daily_activity`; a data segue
+`America/Sao_Paulo`. Não é necessário chamar uma função pelo backend nem
 configurar uma senha específica para o monitoramento.
 
 Esta métrica conta credenciais do banco que fizeram operações de escrita, não
-contas individuais do aplicativo. Quando o app compartilha uma credencial, todos
-os usuários do app aparecem como uma única credencial ativa. Operações feitas por
-outras ferramentas com credenciais diferentes também entram na contagem. As
-views `public.dau_daily` e `public.dau_daily_by_database_role` podem ser lidas
-por `analytics_sync_ro`, sem acesso direto à tabela de atividade. As views omitem
-dias sem registros; relatórios por intervalo devem gerar calendário e preencher
-esses dias com zero.
+contas individuais do aplicativo. `session_user` identifica a credencial usada
+para conectar ao PostgreSQL; quando o app compartilha uma credencial, não permite
+identificar qual pessoa do app fez a alteração. Cada registro representa um
+comando, não cada linha afetada; comandos que alterem zero linhas também são
+registrados. Operações feitas por outras ferramentas com credenciais diferentes
+também entram no log. As views `public.dau_daily`,
+`public.dau_daily_by_database_role` e `public.database_write_activity_log` podem
+ser lidas por `analytics_sync_ro`, sem acesso direto às tabelas de atividade. As
+views de DAU omitem dias sem registros; relatórios por intervalo devem gerar
+calendário e preencher esses dias com zero.
 
 ## Pré-requisitos
 
@@ -281,3 +287,4 @@ Este projeto está sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE).
 <!-- CONTRIBUTORS:END -->
 
 > Atualizado automaticamente semanalmente pelo workflow de metadados do README.
+
