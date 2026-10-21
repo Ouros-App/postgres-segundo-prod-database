@@ -51,7 +51,7 @@ BEGIN
         SELECT event_id
         FROM public.database_write_events
         ORDER BY event_at DESC, event_id DESC
-        OFFSET 100000
+        OFFSET 25000
     );
 
     INSERT INTO public.database_role_daily_activity (
@@ -75,7 +75,7 @@ WHERE logged_event.event_id IN (
     SELECT event_id
     FROM public.database_write_events
     ORDER BY event_at DESC, event_id DESC
-    OFFSET 100000
+    OFFSET 25000
 );
 
 REVOKE ALL PRIVILEGES ON FUNCTION public.capture_database_write_activity() FROM PUBLIC;
