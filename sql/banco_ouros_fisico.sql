@@ -260,6 +260,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     CONSTRAINT chk_notifications_read_at CHECK (read_at IS NULL OR read_at >= created_at)
 );
 
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS event_id VARCHAR(255);
+
 CREATE INDEX IF NOT EXISTS idx_notifications_user_lookup 
     ON notifications (user_id, user_role, is_read, created_at DESC);
 
