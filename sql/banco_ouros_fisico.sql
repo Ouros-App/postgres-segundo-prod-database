@@ -246,6 +246,7 @@ CREATE INDEX IF NOT EXISTS idx_device_tokens_role
 
 CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
+    event_id VARCHAR(255),
     user_id INTEGER NOT NULL CHECK (user_id > 0),
     user_role VARCHAR(50) NOT NULL CHECK (user_role IN ('FARM_OWNER', 'COMPANY_EMPLOYEE', 'ADM')),
     title VARCHAR(150) NOT NULL CHECK (btrim(title) <> ''),
@@ -264,3 +265,6 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_lookup
 
 CREATE INDEX IF NOT EXISTS idx_notifications_tip 
     ON notifications (id_tip);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_event_id
+    ON notifications (event_id) WHERE event_id IS NOT NULL;
