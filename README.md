@@ -142,7 +142,7 @@ python scripts/rpa_pre_novo.py reconcile --after-load \
 `public`. Cada `INSERT`, `UPDATE`, `DELETE` ou `TRUNCATE` registra o horário, a
 credencial PostgreSQL (`session_user`), o schema, a tabela e a ação na tabela
 `public.database_write_events`, consultável pela view
-`public.database_write_activity_log`. O log mantém no máximo 100.000 eventos;
+`public.database_write_activity_log`. O log mantém no máximo 25.000 eventos;
 quando o limite é ultrapassado, os eventos mais antigos são removidos. A
 atividade diária continua deduplicada por credencial na tabela
 `public.database_role_daily_activity`; a data segue `America/Sao_Paulo`. Não é
