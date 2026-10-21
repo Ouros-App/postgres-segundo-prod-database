@@ -17,7 +17,15 @@ SQL_LINE_COMMENT_RE = re.compile(r"--[^\n]*")
 UNSAFE_SQL_PATTERNS = (
     ("UPDATE", re.compile(r"\bUPDATE\s+(?:ONLY\s+)?\S+(?:\s+AS\s+\S+)?\s+SET\b", re.IGNORECASE)),
     ("DELETE", re.compile(r"\bDELETE\s+FROM\b", re.IGNORECASE)),
-    ("TRUNCATE", re.compile(r"\bTRUNCATE\b", re.IGNORECASE)),
+    (
+        "TRUNCATE",
+        re.compile(
+            r"\bTRUNCATE\s+(?:TABLE\s+)?(?:ONLY\s+)?"
+            r"(?!ON\b)(?:\"[^\"]+\"|[A-Z_][A-Z0-9_$]*)"
+            r"(?:\s*\.\s*(?:\"[^\"]+\"|[A-Z_][A-Z0-9_$]*))*",
+            re.IGNORECASE,
+        ),
+    ),
     ("MERGE", re.compile(r"\bMERGE\s+INTO\b", re.IGNORECASE)),
     ("UPSERT UPDATE", re.compile(r"\bON\s+CONFLICT\b[\s\S]*?\bDO\s+UPDATE\b", re.IGNORECASE)),
     ("DROP DATA OBJECT", re.compile(r"\bDROP\s+(?:DATABASE|SCHEMA|TABLE|VIEW)\b", re.IGNORECASE)),
@@ -77,6 +85,25 @@ APPROVED_DESTRUCTIVE_STATEMENTS = {
         re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+integrated_consumption\s*;", re.IGNORECASE),
         re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.water_registries\s*;", re.IGNORECASE),
         re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.energy_registries\s*;", re.IGNORECASE),
+    ),
+    "monitoramento_dau.sql": (
+        re.compile(
+            r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+public\.dau_daily_by_user_type\s*;",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bDELETE\s+FROM\s+public\.database_write_events\s+"
+            r"WHERE\s+event_id\s*<=\s*v_event_id\s*-\s*25000\s*;",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bDELETE\s+FROM\s+public\.database_write_events\s+AS\s+logged_event\s+"
+            r"WHERE\s+logged_event\.event_id\s+IN\s*\(\s*"
+            r"SELECT\s+event_id\s+FROM\s+public\.database_write_events\s+"
+            r"ORDER\s+BY\s+event_at\s+DESC\s*,\s*event_id\s+DESC\s+"
+            r"OFFSET\s+25000\s*\)\s*;",
+            re.IGNORECASE,
+        ),
     ),
 }
 CORE_TABLES = (
