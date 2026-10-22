@@ -136,7 +136,25 @@ class DataloadSchemaCompatibilityTests(unittest.TestCase):
         )
         self.assertIsNotNone(tips_definition)
         self.assertRegex(tips_definition.group(1), r"(?i)\btitle\b")
+        self.assertRegex(tips_definition.group(1), r"(?i)\bimage_url\b")
         self.assertRegex(tips_definition.group(1), r"(?i)\bfoto_url\b")
+
+    def test_tips_catalog_and_cloudinary_migration(self):
+        migration = (ROOT / "sql" / "atualiza_tips_estrutura_e_catalogo.sql").read_text(encoding="utf-8")
+        dataload = (ROOT / "sql" / "dataload_inicial.sql").read_text(encoding="utf-8")
+
+        # 32 tips present
+        for sql_content in (migration, dataload):
+            self.assertIn("Regulagem Diária e Ajuste de Altura das Linhas de Nipple", sql_content)
+            self.assertIn("Calibração de Sensores e Redundância de Termostatos de Emergência", sql_content)
+            self.assertIn("res.cloudinary.com/mpyey2bi/image/upload", sql_content)
+            self.assertIn("tip_01.webp", sql_content)
+            self.assertIn("tip_32.webp", sql_content)
+
+        # Categories present
+        for cat in ("Ambiência", "Controle de Umidade", "Ventilação Mínima", "Velocidade do Ar", "Sanitização de Tubulações"):
+            self.assertIn(cat, migration)
+            self.assertIn(cat, dataload)
 
     def test_lots_postload_does_not_reference_removed_gain_column(self):
         schema = (ROOT / "sql" / "banco_ouros_fisico.sql").read_text(encoding="utf-8")

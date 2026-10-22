@@ -119,9 +119,10 @@ Conteúdo de dicas disponibilizado pelo sistema.
 | Coluna | Tipo e regras | Descrição |
 |---|---|---|
 | `id` | `SERIAL`, PK | Identificador da dica. |
-| `title` | `VARCHAR(150) NOT NULL DEFAULT 'Dica Operacional'`, não vazio | Título da dica técnica. |
+| `title` | `VARCHAR(200) NOT NULL DEFAULT 'Dica Operacional'`, não vazio | Título da dica técnica. |
 | `tip` | `TEXT NOT NULL` | Texto ou corpo descritivo da dica; não pode ser vazio. |
-| `foto_url` | `TEXT`, aceita `NULL` | URL da imagem ou hero banner ilustrativo da dica. |
+| `image_url` | `TEXT`, aceita `NULL` | URL segura HTTPS da imagem ilustrativa hospedada no Cloudinary. |
+| `foto_url` | `TEXT`, aceita `NULL` | URL da imagem ou hero banner ilustrativo da dica (mantido para compatibilidade). |
 
 ### `categories`
 

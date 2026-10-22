@@ -60,6 +60,8 @@ database:
       mode: once
     - file: adiciona_tips_title_foto_url.sql
       mode: once
+    - file: atualiza_tips_estrutura_e_catalogo.sql
+      mode: once
     - file: dataload_inicial.sql
       mode: once
       # Seed somente em banco realmente vazio. Se qualquer dado de aplicacao existir,
