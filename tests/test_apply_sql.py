@@ -144,6 +144,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("atualiza_farm-owners-campos-opcionais.sql", "once", False),
                 ("adiciona_notifications_event_id.sql", "once", False),
                 ("adiciona_tips_title_foto_url.sql", "once", False),
+                ("atualiza_tips_estrutura_e_catalogo.sql", "once", False),
                 ("dataload_inicial.sql", "once", True),
                 ("dataload_analytics.sql", "never", False),
                 ("atualiza_consumo_mensal.sql", "never", False),
@@ -224,6 +225,27 @@ class ApplySqlTest(unittest.TestCase):
             content,
             r"(?s)GRANT SELECT ON TABLE.*public\.farms_tips.*TO analytics_sync_ro;",
         )
+
+
+    def test_atualiza_tips_estrutura_e_catalogo_deletes_are_allowlisted(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        content = (root / "sql" / "atualiza_tips_estrutura_e_catalogo.sql").read_text(
+            encoding="utf-8"
+        )
+        assert_safe_sql(content, "atualiza_tips_estrutura_e_catalogo.sql")
+        for statement in (
+            "UPDATE reviews r",
+            "UPDATE notifications n",
+            "DELETE FROM farms_tips",
+            "DELETE FROM tip_categories",
+            "DELETE FROM tips",
+        ):
+            self.assertIn(statement, content)
+        with self.assertRaisesRegex(RuntimeError, "SQL inseguro bloqueado"):
+            assert_safe_sql(
+                "DELETE FROM farms WHERE id = 1;",
+                "atualiza_tips_estrutura_e_catalogo.sql",
+            )
 
     def test_tips_categories_migration_column_drops_are_allowlisted(self) -> None:
         root = Path(__file__).resolve().parents[1]

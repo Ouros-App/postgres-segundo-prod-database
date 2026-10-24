@@ -82,7 +82,13 @@ END
 $$;
 
 CREATE OR REPLACE VIEW midas.tips AS
-SELECT id, tip FROM public.tips;
+SELECT
+    id,
+    tip,
+    title,
+    image_url,
+    foto_url
+FROM public.tips;
 
 CREATE OR REPLACE VIEW midas.categories AS
 SELECT id, category FROM public.categories;

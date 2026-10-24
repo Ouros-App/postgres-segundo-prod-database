@@ -2,7 +2,7 @@ DROP PROCEDURE IF EXISTS create_tip(TEXT, INTEGER, INTEGER);
 DROP PROCEDURE IF EXISTS create_tip(VARCHAR, TEXT, TEXT, INTEGER, INTEGER, INTEGER);
 
 CREATE OR REPLACE PROCEDURE create_tip(
-    IN p_title VARCHAR(150),
+    IN p_title VARCHAR(200),
     IN p_tip TEXT,
     IN p_foto_url TEXT,
     IN p_id_farm INTEGER,
@@ -12,8 +12,8 @@ CREATE OR REPLACE PROCEDURE create_tip(
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    INSERT INTO tips (title, tip, foto_url)
-    VALUES (p_title, p_tip, p_foto_url)
+    INSERT INTO tips (title, tip, image_url, foto_url)
+    VALUES (p_title, p_tip, p_foto_url, p_foto_url)
     RETURNING id INTO p_tip_id;
 
     INSERT INTO farms_tips (id_farm, id_tip)

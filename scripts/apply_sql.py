@@ -86,6 +86,28 @@ APPROVED_DESTRUCTIVE_STATEMENTS = {
         re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.water_registries\s*;", re.IGNORECASE),
         re.compile(r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+midas\.energy_registries\s*;", re.IGNORECASE),
     ),
+    "atualiza_tips_estrutura_e_catalogo.sql": (
+        re.compile(
+            r"\bUPDATE\s+reviews\s+r\s+SET\s+id_tip\s*=\s*nd\.id[\s\S]*?;",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bUPDATE\s+notifications\s+n\s+SET\s+id_tip\s*=\s*nd\.id[\s\S]*?;",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bDELETE\s+FROM\s+farms_tips\s+WHERE\s+id_tip\s+NOT\s+IN\s*\([\s\S]*?\)\s*;",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bDELETE\s+FROM\s+tip_categories\s+WHERE\s+id_tip\s+NOT\s+IN\s*\([\s\S]*?\)\s*;",
+            re.IGNORECASE,
+        ),
+        re.compile(
+            r"\bDELETE\s+FROM\s+tips\s+WHERE\s+title\s+NOT\s+IN\s*\([\s\S]*?\)\s*;",
+            re.IGNORECASE,
+        ),
+    ),
     "monitoramento_dau.sql": (
         re.compile(
             r"\bDROP\s+VIEW\s+IF\s+EXISTS\s+public\.dau_daily_by_user_type\s*;",
