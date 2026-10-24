@@ -84,8 +84,8 @@ $$;
 CREATE OR REPLACE VIEW midas.tips AS
 SELECT
     id,
-    title,
     tip,
+    title,
     image_url,
     foto_url
 FROM public.tips;

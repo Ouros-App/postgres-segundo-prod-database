@@ -4,12 +4,9 @@
 -- Modo: once
 -- ============================================================================
 
--- 1. Evolucao da estrutura da tabela tips
+-- 1. Evolucao da estrutura da tabela tips (adicao de image_url e expansao de title para 200 caracteres)
 ALTER TABLE tips
-    ADD COLUMN IF NOT EXISTS title VARCHAR(200) NOT NULL DEFAULT 'Dica Operacional'
-        CHECK (btrim(title) <> ''),
-    ADD COLUMN IF NOT EXISTS image_url TEXT,
-    ADD COLUMN IF NOT EXISTS foto_url TEXT;
+    ADD COLUMN IF NOT EXISTS image_url TEXT;
 
 ALTER TABLE tips ALTER COLUMN title TYPE VARCHAR(200);
 
