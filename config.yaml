@@ -105,5 +105,7 @@ database:
       mode: on_change
     - file: audience_tip_observations.sql
       mode: once
+    - file: audience_tip_observations_tip_farm_index.sql
+      mode: once
     - file: monitoramento_dau.sql
       mode: always

@@ -158,6 +158,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("analytics_sync_user.sql", "on_change", False),
                 ("audience_engine_metadata.sql", "on_change", False),
                 ("audience_tip_observations.sql", "once", False),
+                ("audience_tip_observations_tip_farm_index.sql", "once", False),
                 ("monitoramento_dau.sql", "always", False),
             ],
         )
