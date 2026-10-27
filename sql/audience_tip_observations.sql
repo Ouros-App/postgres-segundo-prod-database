@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS public.farm_tip_observations (
     PRIMARY KEY (farm_id, tip_id)
 );
 
+CREATE INDEX IF NOT EXISTS farm_tip_observations_tip_farm_idx
+    ON public.farm_tip_observations (tip_id, farm_id);
+
 COMMENT ON TABLE public.farm_tip_observations IS
     'Latest admin-supplied farm-level signal snapshot per tip; contains no member IDs.';
 
