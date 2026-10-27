@@ -156,9 +156,9 @@ class ApplySqlTest(unittest.TestCase):
                 ("midas-resource-import.sql", "on_change", False),
                 ("views_analytics.sql", "on_change", False),
                 ("analytics_sync_user.sql", "on_change", False),
-                ("monitoramento_dau.sql", "always", False),
                 ("audience_engine_metadata.sql", "on_change", False),
                 ("audience_tip_observations.sql", "once", False),
+                ("monitoramento_dau.sql", "always", False),
             ],
         )
 
