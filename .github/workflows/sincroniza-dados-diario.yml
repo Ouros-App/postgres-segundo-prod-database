@@ -2,7 +2,7 @@ name: Sincronizar bancos diariamente
 
 on:
   schedule:
-    - cron: "0 9 * * *"
+    - cron: "30 9 * * *"
       timezone: "America/Sao_Paulo"
   workflow_dispatch:
 
