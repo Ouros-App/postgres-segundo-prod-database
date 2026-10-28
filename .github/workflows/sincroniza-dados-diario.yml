@@ -1,0 +1,47 @@
+name: Sincronizar bancos diariamente
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+      timezone: "America/Sao_Paulo"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sincronizacao-banco-diaria
+  cancel-in-progress: false
+
+jobs:
+  sincronizar:
+    name: Sincronizar estrutura e dados
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Baixar o repositório
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: python -m pip install -r requirements.txt
+
+      - name: Sincronizar banco de origem para destino
+        env:
+          BACKUP_SOURCE_HOST: ${{ secrets.BACKUP_SOURCE_HOST }}
+          BACKUP_SOURCE_PORT: ${{ secrets.BACKUP_SOURCE_PORT }}
+          BACKUP_SOURCE_DB: ${{ secrets.BACKUP_SOURCE_DB }}
+          BACKUP_SOURCE_USER: ${{ secrets.BACKUP_SOURCE_USER }}
+          BACKUP_SOURCE_PASSWORD: ${{ secrets.BACKUP_SOURCE_PASSWORD }}
+          BACKUP_TARGET_HOST: ${{ secrets.BACKUP_TARGET_HOST }}
+          BACKUP_TARGET_PORT: ${{ secrets.BACKUP_TARGET_PORT }}
+          BACKUP_TARGET_DB: ${{ secrets.BACKUP_TARGET_DB }}
+          BACKUP_TARGET_USER: ${{ secrets.BACKUP_TARGET_USER }}
+          BACKUP_TARGET_PASSWORD: ${{ secrets.BACKUP_TARGET_PASSWORD }}
+          BACKUP_FETCH_SIZE: "1000"
+          PGSSLMODE: require
+        run: python scripts/estrutura_banco.py --confirmar-destino

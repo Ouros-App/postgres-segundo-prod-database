@@ -299,3 +299,15 @@ Este projeto está sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE).
 
 > Atualizado automaticamente semanalmente pelo workflow de metadados do README.
 
+
+## Sincronização de estrutura e dados PostgreSQL
+
+O script `scripts/estrutura_banco.py` sincroniza tabelas e registros do banco de origem para o destino. Configure `BACKUP_SOURCE_HOST`, `BACKUP_SOURCE_PORT`, `BACKUP_SOURCE_DB`, `BACKUP_SOURCE_USER`, `BACKUP_SOURCE_PASSWORD` e as variáveis equivalentes `BACKUP_TARGET_*` no arquivo `.env`. O tamanho dos lotes vem de `BACKUP_FETCH_SIZE`. No GitHub Actions, cadastre essas mesmas variáveis em **Settings → Secrets and variables → Actions**; o runner não lê o `.env` local.
+
+Execute a partir da raiz do repositório:
+
+```bash
+python scripts/estrutura_banco.py --confirmar-destino
+```
+
+A carga atualiza e insere registros por chave primária. Tabelas sem chave primária são tratadas comparando a linha inteira para evitar duplicatas em execuções repetidas. O script preserva registros exclusivos do destino e não apaga registros removidos da origem. Cada execução também registra início, fim, status e linhas lidas em `public.backup_execution_log` no banco de destino.
