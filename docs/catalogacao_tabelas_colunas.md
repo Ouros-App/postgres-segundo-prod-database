@@ -235,6 +235,7 @@ Contas de funcionários vinculados a empresas.
 | `email` | `VARCHAR(50) NOT NULL` | E-mail do funcionário. |
 | `telephone` | `VARCHAR(13) NOT NULL` | Telefone com mais de nove caracteres. |
 | `password` | `TEXT`, aceita `NULL` | Senha; se informada, deve ser não vazia. |
+| `photo_url` | `VARCHAR(500)`, aceita `NULL` | URL pública ou storage HTTPS da foto de avatar do colaborador. |
 | `id_enterprise` | `INTEGER NOT NULL`, FK → `enterprises.id` | Empresa à qual o funcionário pertence. |
 
 ### `adms`
@@ -244,8 +245,29 @@ Credenciais de administradores do sistema.
 | Coluna | Tipo e regras | Descrição |
 |---|---|---|
 | `id` | `SERIAL`, PK | Identificador do administrador. |
+| `name` | `VARCHAR(100) DEFAULT 'Administrador'`, aceita `NULL` | Nome do administrador do sistema. |
 | `email` | `VARCHAR(50) NOT NULL` | E-mail de acesso. |
 | `password` | `TEXT NOT NULL` | Senha; não pode ser vazia. |
+| `photo_url` | `VARCHAR(500)`, aceita `NULL` | URL pública ou storage HTTPS da foto de avatar do administrador. |
+
+### `farm_simulations`
+
+Cenários de simulação zootécnica e financeira criados na plataforma web para fazendas e empresas.
+
+| Coluna | Tipo e regras | Descrição |
+|---|---|---|
+| `id` | `BIGSERIAL`, PK | Identificador sequencial da simulação. |
+| `id_farm` | `BIGINT NOT NULL`, FK → `farms.id` com `ON DELETE CASCADE` | Fazenda associada ao cenário simulado. |
+| `id_enterprise` | `BIGINT NOT NULL`, FK → `enterprises.id` com `ON DELETE CASCADE` | Empresa integradora associada ao cenário simulado. |
+| `id_lot` | `VARCHAR(50) NOT NULL` | Identificador ou referência do lote simulado. |
+| `current_cgi` | `NUMERIC(8, 4) NOT NULL` | Índice CGI atual registrado no momento da simulação. |
+| `target_cgi` | `NUMERIC(8, 4) NOT NULL` | Índice CGI alvo projetado na simulação. |
+| `water_price` | `NUMERIC(10, 2) NOT NULL` | Tarifa/preço da água utilizado no cenário. |
+| `energy_price` | `NUMERIC(10, 2) NOT NULL` | Tarifa/preço de energia utilizado no cenário. |
+| `poultry_quantity` | `INTEGER NOT NULL` | Quantidade de aves considerada no cenário. |
+| `target_energy_kwh` | `NUMERIC(8, 4) NOT NULL` | Meta de consumo de energia (kWh) projetada. |
+| `created_at` | `TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP` | Data e hora de criação do cenário. |
+| `updated_at` | `TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP` | Data e hora da última atualização do cenário. |
 
 ### `plans`
 

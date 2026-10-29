@@ -180,6 +180,45 @@ class DataloadSchemaCompatibilityTests(unittest.TestCase):
         self.assertIsNotNone(notifications_definition)
         self.assertRegex(notifications_definition.group(1), r"(?i)\bevent_id\b")
 
+    def test_profile_and_farm_simulations_schema_compatibility(self):
+        schema = (ROOT / "sql" / "banco_ouros_fisico.sql").read_text(encoding="utf-8")
+        company_employees_def = re.search(
+            r"CREATE TABLE IF NOT EXISTS company_employees\s*\((.*?)\n\);",
+            schema,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        self.assertIsNotNone(company_employees_def)
+        self.assertRegex(company_employees_def.group(1), r"(?i)\bphoto_url\b")
+
+        adms_def = re.search(
+            r"CREATE TABLE IF NOT EXISTS adms\s*\((.*?)\n\);",
+            schema,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        self.assertIsNotNone(adms_def)
+        self.assertRegex(adms_def.group(1), r"(?i)\bname\b")
+        self.assertRegex(adms_def.group(1), r"(?i)\bphoto_url\b")
+
+        farm_simulations_def = re.search(
+            r"CREATE TABLE IF NOT EXISTS (?:public\.)?farm_simulations\s*\((.*?)\n\);",
+            schema,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        self.assertIsNotNone(farm_simulations_def)
+        for col in (
+            "id_farm",
+            "id_enterprise",
+            "id_lot",
+            "current_cgi",
+            "target_cgi",
+            "water_price",
+            "energy_price",
+            "poultry_quantity",
+            "target_energy_kwh",
+        ):
+            self.assertRegex(farm_simulations_def.group(1), rf"(?i)\b{col}\b")
+
+
 
 if __name__ == "__main__":
     unittest.main()
