@@ -159,6 +159,8 @@ class ApplySqlTest(unittest.TestCase):
                 ("audience_engine_metadata.sql", "on_change", False),
                 ("audience_tip_observations.sql", "once", False),
                 ("audience_tip_observations_tip_farm_index.sql", "once", False),
+                ("company_employee_and_adm_profile.sql", "once", False),
+                ("farm_simulations.sql", "once", False),
                 ("monitoramento_dau.sql", "always", False),
             ],
         )
@@ -530,6 +532,22 @@ class ApplySqlTest(unittest.TestCase):
             with self.subTest(rows=cursor.rows, description=cursor.description):
                 with self.assertRaises(RuntimeError):
                     baseline_is_applied(cursor, "SELECT TRUE", "seed.sql")
+
+    def test_profile_and_farm_simulations_migrations_are_idempotent_and_safe(self) -> None:
+        """Validate DDL migrations for company_employees/adms profile and farm_simulations."""
+        root = Path(__file__).resolve().parents[1]
+        profile_sql = (root / "sql" / "company_employee_and_adm_profile.sql").read_text(encoding="utf-8")
+        assert_safe_sql(profile_sql, "company_employee_and_adm_profile.sql")
+        self.assertIn("ALTER TABLE public.company_employees", profile_sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS photo_url VARCHAR(500)", profile_sql)
+        self.assertIn("ALTER TABLE public.adms", profile_sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS name VARCHAR(100) DEFAULT 'Administrador'", profile_sql)
+
+        simulations_sql = (root / "sql" / "farm_simulations.sql").read_text(encoding="utf-8")
+        assert_safe_sql(simulations_sql, "farm_simulations.sql")
+        self.assertIn("CREATE TABLE IF NOT EXISTS public.farm_simulations", simulations_sql)
+        self.assertIn("idx_farm_simulations_enterprise", simulations_sql)
+        self.assertIn("idx_farm_simulations_farm", simulations_sql)
 
     def test_empty_execution_order_is_rejected(self) -> None:
         root = Path(__file__).resolve().parents[1]

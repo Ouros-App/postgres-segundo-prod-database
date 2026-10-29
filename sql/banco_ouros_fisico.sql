@@ -115,13 +115,16 @@ CREATE TABLE IF NOT EXISTS company_employees (
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
     telephone VARCHAR(13) CHECK(length(telephone) > 9),
     password TEXT CHECK(length(password) > 0),
+    photo_url VARCHAR(500),
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS adms (
     id SERIAL PRIMARY KEY,
+    name VARCHAR(100) DEFAULT 'Administrador',
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
-    password TEXT NOT NULL CHECK(length(password) > 0)
+    password TEXT NOT NULL CHECK(length(password) > 0),
+    photo_url VARCHAR(500)
 );
 
 CREATE TABLE IF NOT EXISTS state_goals (
@@ -281,3 +284,23 @@ CREATE TABLE IF NOT EXISTS public.backup_execution_log (
     tables_processed INTEGER NOT NULL DEFAULT 0,
     error_message TEXT
 );
+
+CREATE TABLE IF NOT EXISTS public.farm_simulations (
+    id BIGSERIAL PRIMARY KEY,
+    id_farm BIGINT NOT NULL,
+    id_enterprise BIGINT NOT NULL,
+    id_lot VARCHAR(50) NOT NULL,
+    current_cgi NUMERIC(8, 4) NOT NULL,
+    target_cgi NUMERIC(8, 4) NOT NULL,
+    water_price NUMERIC(10, 2) NOT NULL,
+    energy_price NUMERIC(10, 2) NOT NULL,
+    poultry_quantity INTEGER NOT NULL,
+    target_energy_kwh NUMERIC(8, 4) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_farm_simulations_farm FOREIGN KEY (id_farm) REFERENCES public.farms(id) ON DELETE CASCADE,
+    CONSTRAINT fk_farm_simulations_enterprise FOREIGN KEY (id_enterprise) REFERENCES public.enterprises(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_farm_simulations_enterprise ON public.farm_simulations(id_enterprise);
+CREATE INDEX IF NOT EXISTS idx_farm_simulations_farm ON public.farm_simulations(id_farm);

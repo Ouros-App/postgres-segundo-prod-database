@@ -107,5 +107,9 @@ database:
       mode: once
     - file: audience_tip_observations_tip_farm_index.sql
       mode: once
+    - file: company_employee_and_adm_profile.sql
+      mode: once
+    - file: farm_simulations.sql
+      mode: once
     - file: monitoramento_dau.sql
       mode: always
