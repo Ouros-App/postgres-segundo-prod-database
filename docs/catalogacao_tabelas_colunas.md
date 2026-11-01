@@ -81,7 +81,7 @@ Leituras de hidrômetro associadas a uma fazenda e data.
 | Coluna | Tipo e regras | Descrição |
 |---|---|---|
 | `id` | `SERIAL`, PK | Identificador da leitura. |
-| `registration_date` | `DATE NOT NULL` | Data em que a leitura foi registrada. |
+| `registration_date` | `TIMESTAMP NOT NULL` | Data e hora em que a leitura foi registrada. |
 | `start_hydrometer` | `NUMERIC NOT NULL`, maior que zero | Leitura inicial do hidrômetro. |
 | `end_hydrometer` | `NUMERIC NOT NULL`, maior que zero | Leitura final; deve ser maior ou igual à inicial. |
 | `id_farm` | `INTEGER NOT NULL`, FK → `farms.id` | Fazenda à qual pertence a leitura. |
@@ -93,7 +93,7 @@ Registros de consumo de energia de uma fazenda.
 | Coluna | Tipo e regras | Descrição |
 |---|---|---|
 | `id` | `SERIAL`, PK | Identificador do registro de energia. |
-| `registration_date` | `DATE NOT NULL` | Data do registro. |
+| `registration_date` | `TIMESTAMP NOT NULL` | Data e hora do registro. |
 | `energy_consumption` | `NUMERIC NOT NULL`, maior que zero | Consumo de energia. A unidade não é especificada no DDL principal. |
 | `id_farm` | `INTEGER NOT NULL`, FK → `farms.id` | Fazenda à qual pertence o consumo. |
 
@@ -106,7 +106,7 @@ Lotes de aves administrados por uma empresa e associados a uma fazenda.
 | `id` | `SERIAL`, PK | Identificador do lote. |
 | `received_chickens` | `INTEGER NOT NULL`, mínimo zero | Aves recebidas no lote. |
 | `delivered_chickens` | `INTEGER NOT NULL`, mínimo zero | Aves entregues; não pode superar as recebidas. |
-| `delivery_date` | `DATE NOT NULL` | Data de entrega do lote. |
+| `delivery_date` | `DATE`, aceita `NULL` | Data de entrega do lote. |
 | `losts` | `INTEGER NOT NULL DEFAULT 0`, mínimo zero | Quantidade de aves perdidas. |
 | `cost` | `DOUBLE PRECISION NOT NULL DEFAULT 0`, mínimo zero | Custo do lote. |
 | `id_enterprise` | `INTEGER NOT NULL`, FK → `enterprises.id` | Empresa responsável pelo lote. |
@@ -233,7 +233,7 @@ Contas de funcionários vinculados a empresas.
 | `name` | `VARCHAR(100) NOT NULL` | Nome do funcionário. |
 | `document_number` | `VARCHAR(11) NOT NULL UNIQUE` | Documento pessoal; não pode repetir. |
 | `email` | `VARCHAR(50) NOT NULL` | E-mail do funcionário. |
-| `telephone` | `VARCHAR(13) NOT NULL` | Telefone com mais de nove caracteres. |
+| `telephone` | `VARCHAR(13)`, aceita `NULL` | Telefone com mais de nove caracteres quando informado. |
 | `password` | `TEXT`, aceita `NULL` | Senha; se informada, deve ser não vazia. |
 | `photo_url` | `VARCHAR(500)`, aceita `NULL` | URL pública ou storage HTTPS da foto de avatar do colaborador. |
 | `id_enterprise` | `INTEGER NOT NULL`, FK → `enterprises.id` | Empresa à qual o funcionário pertence. |
@@ -379,9 +379,93 @@ Cópia histórica parcial dos dados de uma fazenda. O DDL contém nomes legados 
 | `area_property` | `DOUBLE PRECISION`, aceita `NULL` | Área copiada da fazenda. |
 | `region` | `VARCHAR`, aceita `NULL` | Região da fazenda. |
 | `poulty_capacity` | `INTEGER`, aceita `NULL` | Coluna histórica com esse nome no DDL; mantém uma grafia legada e não corresponde a uma coluna atual de `farms`. |
+| `place` | `VARCHAR`, aceita `NULL` | Localidade histórica da fazenda. |
 | `chickens_now` | `INTEGER`, aceita `NULL` | Quantidade atual de aves registrada. |
 | `id_adress` | `INTEGER`, aceita `NULL` | ID do endereço; nome histórico com grafia distinta de `farms.id_address`. |
 | `id_enterprise` | `INTEGER`, aceita `NULL` | ID da empresa associada. |
+
+## Tabelas de audiência e monitoramento
+
+### `audience_snapshot_refs`
+
+Referências à versão atual de cada público; os membros ficam em bitmaps versionados no S3.
+
+| Coluna | Tipo e regras | Descrição |
+|---|---|---|
+| `audience_key` | `TEXT`, PK | Identificador do público. |
+| `snapshot_version` | `BIGINT NOT NULL DEFAULT 0`, mínimo zero | Versão do snapshot. |
+| `s3_object_key` | `TEXT`, aceita `NULL` | Chave do bitmap no S3. |
+| `s3_manifest_key` | `TEXT`, aceita `NULL` | Chave do manifesto no S3. |
+| `bitmap_sha256` | `CHAR(64)`, aceita `NULL` | Hash do bitmap. |
+| `rule_version` | `TEXT NOT NULL` | Versão da regra de público. |
+| `source_watermark` | `TIMESTAMPTZ`, aceita `NULL` | Marca temporal dos dados de origem. |
+| `evaluated_at` | `TIMESTAMPTZ`, aceita `NULL` | Momento da avaliação. |
+| `published_at` | `TIMESTAMPTZ`, aceita `NULL` | Momento da publicação. |
+| `dispatched_through_version` | `BIGINT NOT NULL DEFAULT 0` | Última versão despachada; entre zero e `snapshot_version`. |
+
+Na versão zero, as duas chaves S3 e o hash são nulos; em versões positivas, os três são obrigatórios.
+
+### `tip_audience_refs`
+
+Associa dicas a públicos; a chave primária é composta por `tip_id` e `audience_key`.
+
+| Coluna | Tipo e regras | Descrição |
+|---|---|---|
+| `tip_id` | `BIGINT NOT NULL`, PK, FK → `tips.id` com `ON DELETE CASCADE` | Dica associada. |
+| `audience_key` | `TEXT NOT NULL`, PK, FK → `audience_snapshot_refs.audience_key` | Público associado. |
+| `enabled` | `BOOLEAN NOT NULL DEFAULT FALSE` | Indica se a associação está habilitada. |
+
+### `farm_tip_observations`
+
+Última observação de sinais por fazenda e dica; a chave primária é composta por `farm_id` e `tip_id`.
+
+| Coluna | Tipo e regras | Descrição |
+|---|---|---|
+| `farm_id` | `INTEGER NOT NULL`, PK, FK → `farms.id` com `ON DELETE CASCADE` | Fazenda observada. |
+| `tip_id` | `INTEGER NOT NULL`, PK, FK → `tips.id` com `ON DELETE CASCADE` | Dica associada. |
+| `observed_at` | `TIMESTAMPTZ NOT NULL` | Momento da observação. |
+| `signals` | `JSONB NOT NULL`, objeto | Sinais informados para a fazenda. |
+| `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT statement_timestamp()` | Momento da atualização. |
+
+### `database_role_daily_activity`
+
+Primeira atividade de escrita registrada para cada role por dia; a chave primária é composta por data e role.
+
+| Coluna | Tipo e regras | Descrição |
+|---|---|---|
+| `activity_date` | `DATE NOT NULL`, PK | Data da atividade em São Paulo. |
+| `database_role` | `TEXT NOT NULL`, PK, não vazio | Role de banco registrada. |
+| `first_recorded_at` | `TIMESTAMPTZ NOT NULL` | Momento da primeira atividade registrada. |
+
+### `database_write_events`
+
+Eventos de comandos de escrita capturados por gatilho; a rotina limita o histórico aos eventos recentes.
+
+| Coluna | Tipo e regras | Descrição |
+|---|---|---|
+| `event_id` | `BIGINT GENERATED ALWAYS AS IDENTITY`, PK | Identificador do evento. |
+| `event_at` | `TIMESTAMPTZ NOT NULL` | Momento do evento. |
+| `activity_date` | `DATE NOT NULL` | Data do evento em São Paulo. |
+| `database_user` | `TEXT NOT NULL`, não vazio | Usuário da sessão. |
+| `table_schema` | `TEXT NOT NULL` | Schema da tabela afetada. |
+| `table_name` | `TEXT NOT NULL` | Nome da tabela afetada. |
+| `action` | `TEXT NOT NULL`, `INSERT`, `UPDATE`, `DELETE` ou `TRUNCATE` | Operação registrada. |
+
+### `backup_execution_log`
+
+Registra execuções de backup entre bancos.
+
+| Coluna | Tipo e regras | Descrição |
+|---|---|---|
+| `backup_id` | `BIGINT GENERATED BY DEFAULT AS IDENTITY`, PK | Identificador da execução. |
+| `source_database` | `TEXT NOT NULL` | Banco de origem. |
+| `target_database` | `TEXT NOT NULL` | Banco de destino. |
+| `started_at` | `TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP` | Início da execução. |
+| `finished_at` | `TIMESTAMPTZ`, aceita `NULL` | Fim da execução. |
+| `status` | `TEXT NOT NULL`, `running`, `success` ou `failed` | Estado da execução. |
+| `rows_read` | `BIGINT NOT NULL DEFAULT 0` | Linhas lidas. |
+| `tables_processed` | `INTEGER NOT NULL DEFAULT 0` | Tabelas processadas. |
+| `error_message` | `TEXT`, aceita `NULL` | Mensagem de erro, quando houver. |
 
 ## Tabelas de controle da aplicação
 
