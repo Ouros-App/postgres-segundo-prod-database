@@ -1,7 +1,5 @@
 # Catálogo do banco de dados
 
-Referência: scripts da `main` no commit `5aec128` (29/10/2026).
-
 Este documento descreve as tabelas e colunas declaradas pelos scripts SQL do repositório. Os tipos, valores padrão, nulabilidade e restrições refletem o esquema versionado aqui; não são uma consulta aos dados de uma instância PostgreSQL em produção.
 
 `PK` indica chave primária; `FK` indica chave estrangeira. Salvo indicação contrária, `NOT NULL` significa que a coluna é obrigatória e a ausência dessa marca significa que a coluna aceita `NULL`. Colunas `SERIAL` geram identificadores inteiros automaticamente.
@@ -548,4 +546,3 @@ Relaciona uma role de banco de dados autorizada ao proprietário de fazenda que 
 - `farms_log.place` também é conservada como dado histórico; novos registros gerados pelo gatilho de fazendas deixam essa coluna legada sem valor.
 - A grafia `losts` é a que está definida no esquema para a quantidade de perdas do lote.
 - Descrições de unidades só são informadas quando aparecem explicitamente nos scripts SQL; não se inferem unidades ausentes do DDL.
-
