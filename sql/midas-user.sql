@@ -20,11 +20,75 @@ SELECT * FROM public.addresses;
 CREATE OR REPLACE VIEW midas.enterprises AS
 SELECT * FROM public.enterprises;
 
-CREATE OR REPLACE VIEW midas.farms AS
-SELECT * FROM public.farms;
+-- Expose the current farms shape without the retired place column. Preserve an
+-- existing poultry_capacity output as NULL for legacy Midas clients.
+-- Preserve updated_at in both shapes. Neither path reads retired public columns.
+DO $$
+BEGIN
+    IF to_regclass('midas.farms') IS NULL THEN
+        EXECUTE $view$
+            CREATE VIEW midas.farms AS
+            SELECT
+                id,
+                name,
+                area_property,
+                region,
+                chickens_now,
+                foto_url,
+                id_address,
+                id_enterprise,
+                updated_at
+            FROM public.farms
+        $view$;
+    ELSIF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'midas'
+          AND table_name = 'farms'
+          AND column_name = 'poultry_capacity'
+    ) THEN
+        EXECUTE $view$
+            CREATE OR REPLACE VIEW midas.farms AS
+            SELECT
+                id,
+                name,
+                area_property,
+                region,
+                NULL::INTEGER AS poultry_capacity,
+                chickens_now,
+                foto_url,
+                id_address,
+                id_enterprise,
+                updated_at
+            FROM public.farms
+        $view$;
+    ELSE
+        EXECUTE $view$
+            CREATE OR REPLACE VIEW midas.farms AS
+            SELECT
+                id,
+                name,
+                area_property,
+                region,
+                chickens_now,
+                foto_url,
+                id_address,
+                id_enterprise,
+                updated_at
+            FROM public.farms
+        $view$;
+    END IF;
+END
+$$;
 
 CREATE OR REPLACE VIEW midas.tips AS
-SELECT id, tip FROM public.tips;
+SELECT
+    id,
+    tip,
+    title,
+    image_url,
+    foto_url
+FROM public.tips;
 
 CREATE OR REPLACE VIEW midas.categories AS
 SELECT id, category FROM public.categories;

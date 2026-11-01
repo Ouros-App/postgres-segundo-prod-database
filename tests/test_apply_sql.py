@@ -124,28 +124,44 @@ class ApplySqlTest(unittest.TestCase):
             [(path.name, mode, baseline_query is not None) for path, mode, baseline_query in entries],
             [
                 ("banco_ouros_fisico.sql", "on_change", False),
+                ("farm_chicken_stock_timeline.sql", "on_change", False),
+                ("move_state_goal_status_to_farm_goals.sql", "once", False),
                 ("nullable_legacy_missing_columns.sql", "once", False),
+                ("rpa_nullable_fields.sql", "once", False),
                 ("indices_consulta_registros.sql", "once", False),
                 ("atualiza_tips_categories_relations.sql", "once", False),
                 ("procedures.sql", "on_change", False),
                 ("reconcile_farm_owners_first_access.sql", "on_change", False),
                 ("funcoes_consumo_metas.sql", "on_change", False),
                 ("atualiza_updated_at_analytics.sql", "on_change", False),
-                ("analytics_sync_user.sql", "on_change", False),
                 ("keycloak_user_link.sql", "on_change", False),
                 ("ms_auth_service.sql", "on_change", False),
                 ("triggers_logs.sql", "on_change", False),
                 ("remover_poultry_capacity_farms.sql", "once", False),
+                ("remover_state_goal_farm_id_and_farms_place.sql", "once", False),
                 ("atualiza_lots_farm-owners.sql", "once", False),
                 ("atualiza_farms-chicken-left.sql", "once", False),
                 ("atualiza_farm-owners-campos-opcionais.sql", "once", False),
+                ("adiciona_notifications_event_id.sql", "once", False),
+                ("adiciona_tips_title_foto_url.sql", "once", False),
+                ("atualiza_tips_estrutura_e_catalogo.sql", "once", False),
                 ("dataload_inicial.sql", "once", True),
+                ("dataload_analytics.sql", "never", False),
                 ("atualiza_consumo_mensal.sql", "never", False),
                 ("views_galinhas_consumo.sql", "on_change", False),
                 ("dataload_lots_farm-owners.sql", "never", False),
                 ("atualiza_password.sql", "once", False),
                 ("midas-user.sql", "on_change", False),
+                ("rpa_preservar_timestamps.sql", "once", False),
                 ("midas-resource-import.sql", "on_change", False),
+                ("views_analytics.sql", "on_change", False),
+                ("analytics_sync_user.sql", "on_change", False),
+                ("audience_engine_metadata.sql", "on_change", False),
+                ("audience_tip_observations.sql", "once", False),
+                ("audience_tip_observations_tip_farm_index.sql", "once", False),
+                ("company_employee_and_adm_profile.sql", "once", False),
+                ("farm_simulations.sql", "once", False),
+                ("monitoramento_dau.sql", "always", False),
             ],
         )
 
@@ -214,6 +230,27 @@ class ApplySqlTest(unittest.TestCase):
             r"(?s)GRANT SELECT ON TABLE.*public\.farms_tips.*TO analytics_sync_ro;",
         )
 
+
+    def test_atualiza_tips_estrutura_e_catalogo_deletes_are_allowlisted(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        content = (root / "sql" / "atualiza_tips_estrutura_e_catalogo.sql").read_text(
+            encoding="utf-8"
+        )
+        assert_safe_sql(content, "atualiza_tips_estrutura_e_catalogo.sql")
+        for statement in (
+            "UPDATE reviews r",
+            "UPDATE notifications n",
+            "DELETE FROM farms_tips",
+            "DELETE FROM tip_categories",
+            "DELETE FROM tips",
+        ):
+            self.assertIn(statement, content)
+        with self.assertRaisesRegex(RuntimeError, "SQL inseguro bloqueado"):
+            assert_safe_sql(
+                "DELETE FROM farms WHERE id = 1;",
+                "atualiza_tips_estrutura_e_catalogo.sql",
+            )
+
     def test_tips_categories_migration_column_drops_are_allowlisted(self) -> None:
         root = Path(__file__).resolve().parents[1]
         content = (root / "sql" / "atualiza_tips_categories_relations.sql").read_text(
@@ -255,6 +292,69 @@ class ApplySqlTest(unittest.TestCase):
                 "remover_poultry_capacity_farms.sql",
             )
 
+    def test_state_goal_farm_id_and_farms_place_drop_is_allowlisted(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        identity = "remover_state_goal_farm_id_and_farms_place.sql"
+        content = (root / "sql" / identity).read_text(encoding="utf-8")
+        assert_safe_sql(content, identity)
+        for statement in (
+            "DROP VIEW IF EXISTS midas.farms;",
+            "DROP VIEW IF EXISTS midas.state_goals;",
+            "ALTER TABLE state_goals DROP COLUMN IF EXISTS id_farm;",
+            "ALTER TABLE farms DROP COLUMN IF EXISTS place;",
+            "INSERT INTO farm_goals (id_farm, id_goal)",
+            "ON CONFLICT (id_farm, id_goal) DO NOTHING;",
+            "GRANT SELECT ON TABLE midas.farms, midas.state_goals TO midas_ro;",
+        ):
+            self.assertIn(statement, content)
+        with self.assertRaisesRegex(RuntimeError, "SQL inseguro bloqueado"):
+            assert_safe_sql(
+                "ALTER TABLE farms DROP COLUMN IF EXISTS foto_url;",
+                identity,
+            )
+
+    def test_state_goal_status_move_is_allowlisted(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        identity = "move_state_goal_status_to_farm_goals.sql"
+        content = (root / "sql" / identity).read_text(encoding="utf-8")
+        assert_safe_sql(content, identity)
+        for statement in (
+            "DROP VIEW IF EXISTS midas.state_goals;",
+            "DROP VIEW IF EXISTS midas.farm_goals;",
+            "UPDATE farm_goals fg",
+            "SET status = sg.status",
+            "UPDATE farm_goals",
+            "SET status = 'Pendente'",
+            "ALTER TABLE state_goals DROP COLUMN IF EXISTS status;",
+            "GRANT SELECT ON TABLE midas.state_goals, midas.farm_goals TO midas_ro;",
+        ):
+            self.assertIn(statement, content)
+        with self.assertRaisesRegex(RuntimeError, "SQL inseguro bloqueado"):
+            assert_safe_sql(
+                "UPDATE farm_goals SET status = 'Concluída';\n"
+                "ALTER TABLE state_goals DROP COLUMN IF EXISTS title;",
+                identity,
+            )
+
+    def test_timestamp_migration_view_drops_are_allowlisted(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        identity = "rpa_preservar_timestamps.sql"
+        content = (root / "sql" / identity).read_text(encoding="utf-8")
+        assert_safe_sql(content, identity)
+        for statement in (
+            "DROP VIEW IF EXISTS chickens_per_liter;",
+            "DROP VIEW IF EXISTS chickens_per_kwh;",
+            "DROP VIEW IF EXISTS integrated_consumption;",
+            "DROP VIEW IF EXISTS midas.water_registries;",
+            "DROP VIEW IF EXISTS midas.energy_registries;",
+            "CREATE VIEW chickens_per_liter AS",
+            "CREATE VIEW chickens_per_kwh AS",
+            "CREATE VIEW integrated_consumption AS",
+        ):
+            self.assertIn(statement, content)
+        with self.assertRaisesRegex(RuntimeError, "SQL inseguro bloqueado"):
+            assert_safe_sql("DROP VIEW IF EXISTS unrelated_view;", identity)
+
     def test_procedures_sql_definitions(self) -> None:
         """Keep procedures configured with inout return ids and valid constraint references."""
         root = Path(__file__).resolve().parents[1]
@@ -264,6 +364,9 @@ class ApplySqlTest(unittest.TestCase):
         self.assertIn("INOUT p_goal_id INTEGER DEFAULT NULL", content)
         self.assertIn("p_region VARCHAR(50)", content)
         self.assertIn("id_farm", content)
+        self.assertIn("INSERT INTO farm_goals (id_farm, id_goal, status)", content)
+        goal_insert = content.split("INSERT INTO state_goals (", 1)[1].split(")", 1)[0]
+        self.assertNotIn("status", goal_insert)
 
     def test_destructive_automatic_sql_is_rejected(self) -> None:
         unsafe = [
@@ -283,7 +386,8 @@ class ApplySqlTest(unittest.TestCase):
 
     def test_trigger_event_keywords_are_not_mistaken_for_update_statements(self) -> None:
         assert_safe_sql(
-            "CREATE TRIGGER t AFTER INSERT OR UPDATE OR DELETE ON farms FOR EACH ROW EXECUTE FUNCTION f();",
+            "CREATE TRIGGER t AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON farms "
+            "FOR EACH STATEMENT EXECUTE FUNCTION f();",
             "trigger.sql",
         )
 
@@ -428,6 +532,22 @@ class ApplySqlTest(unittest.TestCase):
             with self.subTest(rows=cursor.rows, description=cursor.description):
                 with self.assertRaises(RuntimeError):
                     baseline_is_applied(cursor, "SELECT TRUE", "seed.sql")
+
+    def test_profile_and_farm_simulations_migrations_are_idempotent_and_safe(self) -> None:
+        """Validate DDL migrations for company_employees/adms profile and farm_simulations."""
+        root = Path(__file__).resolve().parents[1]
+        profile_sql = (root / "sql" / "company_employee_and_adm_profile.sql").read_text(encoding="utf-8")
+        assert_safe_sql(profile_sql, "company_employee_and_adm_profile.sql")
+        self.assertIn("ALTER TABLE public.company_employees", profile_sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS photo_url VARCHAR(500)", profile_sql)
+        self.assertIn("ALTER TABLE public.adms", profile_sql)
+        self.assertIn("ADD COLUMN IF NOT EXISTS name VARCHAR(100) DEFAULT 'Administrador'", profile_sql)
+
+        simulations_sql = (root / "sql" / "farm_simulations.sql").read_text(encoding="utf-8")
+        assert_safe_sql(simulations_sql, "farm_simulations.sql")
+        self.assertIn("CREATE TABLE IF NOT EXISTS public.farm_simulations", simulations_sql)
+        self.assertIn("idx_farm_simulations_enterprise", simulations_sql)
+        self.assertIn("idx_farm_simulations_farm", simulations_sql)
 
     def test_empty_execution_order_is_rejected(self) -> None:
         root = Path(__file__).resolve().parents[1]

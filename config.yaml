@@ -20,7 +20,13 @@ database:
   execution_order:
     - file: banco_ouros_fisico.sql
       mode: on_change
+    - file: farm_chicken_stock_timeline.sql
+      mode: on_change
+    - file: move_state_goal_status_to_farm_goals.sql
+      mode: once
     - file: nullable_legacy_missing_columns.sql
+      mode: once
+    - file: rpa_nullable_fields.sql
       mode: once
     - file: indices_consulta_registros.sql
       mode: once
@@ -34,8 +40,6 @@ database:
       mode: on_change
     - file: atualiza_updated_at_analytics.sql
       mode: on_change
-    - file: analytics_sync_user.sql
-      mode: on_change
     - file: keycloak_user_link.sql
       mode: on_change
     - file: ms_auth_service.sql
@@ -44,11 +48,19 @@ database:
       mode: on_change
     - file: remover_poultry_capacity_farms.sql
       mode: once
+    - file: remover_state_goal_farm_id_and_farms_place.sql
+      mode: once
     - file: atualiza_lots_farm-owners.sql
       mode: once
     - file: atualiza_farms-chicken-left.sql
       mode: once
     - file: atualiza_farm-owners-campos-opcionais.sql
+      mode: once
+    - file: adiciona_notifications_event_id.sql
+      mode: once
+    - file: adiciona_tips_title_foto_url.sql
+      mode: once
+    - file: atualiza_tips_estrutura_e_catalogo.sql
       mode: once
     - file: dataload_inicial.sql
       mode: once
@@ -68,6 +80,9 @@ database:
         ) OR EXISTS (
           SELECT 1 FROM adms LIMIT 1
         )
+    - file: dataload_analytics.sql
+      mode: never
+      # Carga sintetica adicional; o CI a executa somente no PostgreSQL descartavel.
     - file: atualiza_consumo_mensal.sql
       mode: never
     - file: views_galinhas_consumo.sql
@@ -78,5 +93,23 @@ database:
       mode: once
     - file: midas-user.sql
       mode: on_change
+    - file: rpa_preservar_timestamps.sql
+      mode: once
     - file: midas-resource-import.sql
       mode: on_change
+    - file: views_analytics.sql
+      mode: on_change
+    - file: analytics_sync_user.sql
+      mode: on_change
+    - file: audience_engine_metadata.sql
+      mode: on_change
+    - file: audience_tip_observations.sql
+      mode: once
+    - file: audience_tip_observations_tip_farm_index.sql
+      mode: once
+    - file: company_employee_and_adm_profile.sql
+      mode: once
+    - file: farm_simulations.sql
+      mode: once
+    - file: monitoramento_dau.sql
+      mode: always

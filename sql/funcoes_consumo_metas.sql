@@ -28,9 +28,8 @@ AS $$
 
         UNION ALL
 
-        SELECT sg.status
+        SELECT fg.status
         FROM farm_goals fg
-        JOIN state_goals sg ON sg.id = fg.id_goal
         WHERE fg.id_farm = p_id_farm
     )
     SELECT COALESCE(

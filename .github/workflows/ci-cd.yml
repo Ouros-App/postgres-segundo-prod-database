@@ -119,7 +119,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Create limited bootstrap and owner roles
+      - name: Create limited bootstrap, owner, and audience roles
         run: |
           python - <<'PY'
           import psycopg2
@@ -138,6 +138,9 @@ jobs:
                   "CREATE ROLE ouros_bootstrap LOGIN PASSWORD %s CREATEDB CREATEROLE NOSUPERUSER NOREPLICATION NOBYPASSRLS",
                   ("bootstrap",),
               )
+              cur.execute(
+                  "CREATE ROLE audience_metadata NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
+              )
               cur.execute("GRANT app TO ouros_bootstrap WITH SET TRUE")
           conn.close()
           PY
@@ -145,7 +148,7 @@ jobs:
       - name: Bootstrap database from zero
         run: python scripts/apply_sql.py
 
-      - name: Verify farms capacity migration on a legacy schema
+      - name: Verify farms capacity migration with modern Midas view
         run: |
           python - <<'PY'
           import psycopg2
@@ -156,8 +159,20 @@ jobs:
           )
           with conn:
               with conn.cursor() as cur:
+                  cur.execute("DROP VIEW midas.farms")
+                  cur.execute(
+                      "CREATE VIEW midas.farms AS SELECT id, name, area_property, region, "
+                      "chickens_now, foto_url, id_address, id_enterprise, updated_at FROM public.farms"
+                  )
+                  cur.execute(
+                      "SELECT column_name FROM information_schema.columns "
+                      "WHERE table_schema = 'midas' AND table_name = 'farms' "
+                      "ORDER BY ordinal_position"
+                  )
+                  before = [row[0] for row in cur.fetchall()]
+                  assert "poultry_capacity" not in before
+                  assert len(before) == 9
                   cur.execute("ALTER TABLE farms ADD COLUMN poultry_capacity INTEGER")
-                  cur.execute("UPDATE farms SET poultry_capacity = 9876 WHERE id = (SELECT MIN(id) FROM farms)")
                   cur.execute(
                       "DELETE FROM controle_scripts_sql "
                       "WHERE arquivo = 'remover_poultry_capacity_farms.sql'"
@@ -174,20 +189,213 @@ jobs:
           )
           with conn.cursor() as cur:
               cur.execute(
+                  "SELECT column_name FROM information_schema.columns "
+                  "WHERE table_schema = 'midas' AND table_name = 'farms' "
+                  "ORDER BY ordinal_position"
+              )
+              after = [row[0] for row in cur.fetchall()]
+              assert "poultry_capacity" not in after
+              assert len(after) == 9
+              cur.execute(
+                  "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                  "WHERE table_schema = 'public' AND table_name = 'farms' "
+                  "AND column_name = 'poultry_capacity')"
+              )
+              assert cur.fetchone()[0] is False
+          conn.close()
+          PY
+
+      - name: Verify farms capacity migration on a legacy schema
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="app", password="app"
+          )
+          with conn:
+              with conn.cursor() as cur:
+                  cur.execute("ALTER TABLE farms ADD COLUMN poultry_capacity INTEGER")
+                  cur.execute("ALTER TABLE farms ADD COLUMN place VARCHAR(50)")
+                  cur.execute("UPDATE farms SET poultry_capacity = 9876 WHERE id = (SELECT MIN(id) FROM farms)")
+                  cur.execute("ALTER TABLE state_goals ADD COLUMN id_farm INTEGER REFERENCES farms(id)")
+                  cur.execute("DROP VIEW midas.farm_goals")
+                  cur.execute("DROP VIEW midas.state_goals")
+                  cur.execute("DROP VIEW public.goals_progress")
+                  cur.execute("ALTER TABLE farm_goals DROP CONSTRAINT farm_goals_status_nonempty")
+                  cur.execute("ALTER TABLE farm_goals DROP COLUMN status")
+                  cur.execute("ALTER TABLE state_goals ADD COLUMN status VARCHAR(40) NOT NULL DEFAULT 'Pendente'")
+                  cur.execute("SELECT id_farm, id_goal FROM farm_goals ORDER BY id LIMIT 1")
+                  status_farm_id, status_goal_id = cur.fetchone()
+                  cur.execute(
+                      "SELECT id FROM farms f WHERE f.id <> %s AND NOT EXISTS "
+                      "(SELECT 1 FROM farm_goals fg WHERE fg.id_farm = f.id AND fg.id_goal = %s) "
+                      "ORDER BY id LIMIT 1",
+                      (status_farm_id, status_goal_id),
+                  )
+                  status_second_farm_id = cur.fetchone()[0]
+                  cur.execute(
+                      "INSERT INTO farm_goals (id_farm, id_goal) VALUES (%s, %s)",
+                      (status_second_farm_id, status_goal_id),
+                  )
+                  cur.execute("UPDATE state_goals SET status = 'Concluída' WHERE id = %s", (status_goal_id,))
+                  cur.execute(
+                      "SELECT sg.id, f.id FROM state_goals sg CROSS JOIN farms f "
+                      "WHERE NOT EXISTS (SELECT 1 FROM farm_goals fg "
+                      "WHERE fg.id_goal = sg.id AND fg.id_farm = f.id) LIMIT 1"
+                  )
+                  legacy_goal_id, legacy_farm_id = cur.fetchone()
+                  cur.execute(
+                      "UPDATE state_goals SET id_farm = %s WHERE id = %s",
+                      (legacy_farm_id, legacy_goal_id),
+                  )
+                  cur.execute("DROP VIEW midas.farms")
+                  cur.execute(
+                      """
+                      CREATE VIEW midas.farms AS
+                      SELECT
+                          id,
+                          name,
+                          area_property,
+                          region,
+                          poultry_capacity,
+                          place,
+                          chickens_now,
+                          foto_url,
+                          id_address,
+                          id_enterprise,
+                          updated_at
+                      FROM public.farms
+                      """
+                  )
+                  cur.execute("CREATE VIEW midas.state_goals AS SELECT * FROM public.state_goals")
+                  cur.execute("CREATE VIEW midas.farm_goals AS SELECT * FROM public.farm_goals")
+                  cur.execute(
+                      "DELETE FROM controle_scripts_sql "
+                      "WHERE arquivo IN ('remover_poultry_capacity_farms.sql', "
+                      "'remover_state_goal_farm_id_and_farms_place.sql', "
+                      "'move_state_goal_status_to_farm_goals.sql', "
+                      "'views_analytics.sql', 'analytics_sync_user.sql')"
+                  )
+                  Path("/tmp/ouros-legacy-schema.json").write_text(
+                      json.dumps({
+                          "goal_id": legacy_goal_id,
+                          "farm_id": legacy_farm_id,
+                          "status_goal_id": status_goal_id,
+                          "status_farm_id": status_farm_id,
+                          "status_second_farm_id": status_second_farm_id,
+                      }),
+                      encoding="utf-8",
+                  )
+          conn.close()
+          PY
+          python scripts/apply_sql.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="app", password="app"
+          )
+          with conn.cursor() as cur:
+              cur.execute(
                   "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
                   "WHERE table_schema = 'public' AND table_name = 'farms' "
                   "AND column_name = 'poultry_capacity')"
               )
               assert cur.fetchone()[0] is False, "farms.poultry_capacity was not removed"
+              for table, column in (("farms", "place"), ("state_goals", "id_farm")):
+                  cur.execute(
+                      "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                      "WHERE table_schema = 'public' AND table_name = %s AND column_name = %s)",
+                      (table, column),
+                  )
+                  assert cur.fetchone()[0] is False, f"{table}.{column} was not removed"
+              for table, expected in (("state_goals", False), ("farm_goals", True)):
+                  cur.execute(
+                      "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                      "WHERE table_schema = 'public' AND table_name = %s AND column_name = 'status')",
+                      (table,),
+                  )
+                  assert cur.fetchone()[0] is expected, f"{table}.status has the wrong ownership"
+                  cur.execute(
+                      "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                      "WHERE table_schema = 'midas' AND table_name = %s AND column_name = 'status')",
+                      (table,),
+                  )
+                  assert cur.fetchone()[0] is expected, f"midas.{table}.status has the wrong ownership"
+              legacy = json.loads(Path("/tmp/ouros-legacy-schema.json").read_text(encoding="utf-8"))
+              cur.execute(
+                  "SELECT id_farm, status FROM farm_goals WHERE id_goal = %s ORDER BY id_farm",
+                  (legacy["status_goal_id"],),
+              )
+              migrated_statuses = dict(cur.fetchall())
+              assert migrated_statuses[legacy["status_farm_id"]] == "Concluída"
+              assert migrated_statuses[legacy["status_second_farm_id"]] == "Concluída"
+              cur.execute(
+                  "SELECT calculate_goals_progress(%s), calculate_goals_progress(%s)",
+                  (legacy["status_farm_id"], legacy["status_second_farm_id"]),
+              )
+              progress_before = cur.fetchone()
+              cur.execute(
+                  "UPDATE farm_goals SET status = 'Pendente' WHERE id_farm = %s AND id_goal = %s",
+                  (legacy["status_farm_id"], legacy["status_goal_id"]),
+              )
+              cur.execute(
+                  "SELECT status FROM farm_goals WHERE id_farm = %s AND id_goal = %s",
+                  (legacy["status_second_farm_id"], legacy["status_goal_id"]),
+              )
+              assert cur.fetchone()[0] == "Concluída", "farm-goal status must be independent per farm"
+              cur.execute(
+                  "SELECT calculate_goals_progress(%s), calculate_goals_progress(%s)",
+                  (legacy["status_farm_id"], legacy["status_second_farm_id"]),
+              )
+              progress_after = cur.fetchone()
+              assert progress_after[0] < progress_before[0], "updated farm progress must reflect its own goal status"
+              assert progress_after[1] == progress_before[1], "another farm's progress must remain unchanged"
+              cur.execute("SELECT to_regclass('midas.farms')")
+              assert cur.fetchone()[0] == "midas.farms", "midas.farms view must be preserved"
+              cur.execute(
+                  "SELECT column_name FROM information_schema.columns "
+                  "WHERE table_schema = 'midas' AND table_name = 'farms' "
+                  "ORDER BY ordinal_position"
+              )
+              legacy_columns = [row[0] for row in cur.fetchall()]
+              assert legacy_columns == [
+                  "id", "name", "area_property", "region", "poultry_capacity",
+                  "chickens_now", "foto_url", "id_address",
+                  "id_enterprise", "updated_at"
+              ], f"unexpected Midas farms signature: {legacy_columns}"
+              cur.execute(
+                  "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                  "WHERE table_schema = 'midas' AND table_name = 'state_goals' "
+                  "AND column_name = 'id_farm')"
+              )
+              assert cur.fetchone()[0] is False, "midas.state_goals must not expose id_farm"
+              cur.execute(
+                  "SELECT EXISTS (SELECT 1 FROM farm_goals WHERE id_farm = %s AND id_goal = %s)",
+                  (legacy["farm_id"], legacy["goal_id"]),
+              )
+              assert cur.fetchone()[0] is True, "legacy state_goals farm link was not preserved"
+              cur.execute("SELECT poultry_capacity, updated_at FROM midas.farms LIMIT 1")
+              capacity, _updated_at = cur.fetchone()
+              assert capacity is None, "legacy Midas capacity field must remain compatible"
               cur.execute("SELECT id FROM farms ORDER BY id LIMIT 1")
               farm_id = cur.fetchone()[0]
               cur.execute("UPDATE farms SET chickens_now = chickens_now + 1 WHERE id = %s", (farm_id,))
               cur.execute(
-                  "SELECT poulty_capacity FROM farms_log WHERE id = %s "
+                  "SELECT poulty_capacity, place FROM farms_log WHERE id = %s "
                   "ORDER BY ctid DESC LIMIT 1",
                   (farm_id,),
               )
-              assert cur.fetchone()[0] is None, "new farm logs should not depend on the removed capacity column"
+              capacity, place = cur.fetchone()
+              assert capacity is None, "new farm logs should not depend on the removed capacity column"
+              assert place is None, "new farm logs should not depend on the removed farms.place column"
           conn.commit()
           conn.close()
           PY
@@ -308,6 +516,118 @@ jobs:
           conn.close()
           PY
 
+      - name: Verify supplementary analytics data load
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import psycopg2
+
+          conn = psycopg2.connect(
+              host="127.0.0.1", port=5432, dbname="ouros_integration",
+              user="app", password="app"
+          )
+          script = Path("sql/dataload_analytics.sql").read_text(encoding="utf-8")
+          with conn:
+              with conn.cursor() as cur:
+                  cur.execute(script)
+                  cur.execute(
+                      "UPDATE public.farms SET name = %s "
+                      "WHERE id_address = (SELECT id FROM public.addresses WHERE zip_code = %s)",
+                      ("Granja Analytics - Chapeco", "99100102"),
+                  )
+                  cur.execute(script)
+
+                  cur.execute(
+                      "SELECT COUNT(*) FROM public.farms AS farm "
+                      "JOIN public.addresses AS address ON address.id = farm.id_address "
+                      "WHERE address.zip_code LIKE '991001%'"
+                  )
+                  assert cur.fetchone()[0] == 15, "expected exactly 15 analytics farms after rerun"
+
+                  cur.execute(
+                      "SELECT COUNT(*) FROM public.farms AS farm "
+                      "JOIN public.addresses AS address ON address.id = farm.id_address "
+                      "WHERE address.zip_code LIKE '991001%' AND foto_url IS DISTINCT FROM ''"
+                  )
+                  assert cur.fetchone()[0] == 0, "analytics farms should have an empty foto_url"
+
+                  cur.execute(
+                      "SELECT COUNT(*) FROM public.farms AS farm "
+                      "JOIN public.addresses AS address ON address.id = farm.id_address "
+                      "WHERE address.zip_code LIKE '991001%' AND farm.name ILIKE '%analytics%'"
+                  )
+                  assert cur.fetchone()[0] == 0, "analytics marker should not remain in farm names"
+
+                  expected_rows = {
+                      "water_registries": 540,
+                      "energy_registries": 540,
+                      "lots": 540,
+                      "chicken_left": 540,
+                  }
+                  for table, expected in expected_rows.items():
+                      cur.execute(
+                          f"SELECT COUNT(*) FROM public.{table} AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%'"
+                      )
+                      assert cur.fetchone()[0] == expected, (
+                          f"expected {expected} analytics rows in {table} after rerun"
+                      )
+
+                  null_checks = {
+                      "farms": (
+                          "SELECT COUNT(*) FROM public.farms AS farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (area_property IS NULL OR region IS NULL OR chickens_now IS NULL "
+                          "OR foto_url IS NULL OR id_address IS NULL OR id_enterprise IS NULL)"
+                      ),
+                      "addresses": (
+                          "SELECT COUNT(*) FROM public.addresses AS address "
+                          "JOIN public.farms AS farm ON farm.id_address = address.id "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (address.zip_code IS NULL OR address.state IS NULL OR address.city IS NULL "
+                          "OR address.number IS NULL OR address.country IS NULL)"
+                      ),
+                      "water_registries": (
+                          "SELECT COUNT(*) FROM public.water_registries AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (record.registration_date IS NULL OR record.start_hydrometer IS NULL "
+                          "OR record.end_hydrometer IS NULL)"
+                      ),
+                      "energy_registries": (
+                          "SELECT COUNT(*) FROM public.energy_registries AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (record.registration_date IS NULL OR record.energy_consumption IS NULL)"
+                      ),
+                      "lots": (
+                          "SELECT COUNT(*) FROM public.lots AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (record.received_chickens IS NULL OR record.delivered_chickens IS NULL "
+                          "OR record.delivery_date IS NULL OR record.id_enterprise IS NULL "
+                          "OR record.losts IS NULL OR record.cost IS NULL)"
+                      ),
+                      "chicken_left": (
+                          "SELECT COUNT(*) FROM public.chicken_left AS record "
+                          "JOIN public.farms AS farm ON farm.id = record.id_farm "
+                          "JOIN public.addresses AS address ON address.id = farm.id_address "
+                          "WHERE address.zip_code LIKE '991001%' "
+                          "AND (record.chickens_count IS NULL OR record.exit_date IS NULL)"
+                      ),
+                  }
+                  for table, query in null_checks.items():
+                      cur.execute(query)
+                      assert cur.fetchone()[0] == 0, f"analytics data in {table} contains NULL values"
+          conn.close()
+          PY
+
   sql:
     name: sql
     runs-on: ubuntu-latest
@@ -328,7 +648,11 @@ jobs:
         run: |
           migration='sql/atualiza_tips_categories_relations.sql'
           farms_migration='sql/remover_poultry_capacity_farms.sql'
-          if find sql -type f -name '*.sql' ! -path "$migration" ! -path "$farms_migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
+          columns_migration='sql/remover_state_goal_farm_id_and_farms_place.sql'
+          status_migration='sql/move_state_goal_status_to_farm_goals.sql'
+          timestamp_migration='sql/rpa_preservar_timestamps.sql'
+          dau_migration='sql/monitoramento_dau.sql'
+          if find sql -type f -name '*.sql' ! -path "$migration" ! -path "$farms_migration" ! -path "$columns_migration" ! -path "$status_migration" ! -path "$timestamp_migration" ! -path "$dau_migration" -print0 | xargs -0 grep -nEi '\b(TRUNCATE|DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b'; then
             echo "Destructive SQL is forbidden"
             exit 1
           fi
@@ -336,7 +660,19 @@ jobs:
             echo "Unexpected destructive SQL in approved migration"
             exit 1
           fi
-          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$farms_migration" | grep -Ev 'ALTER TABLE farms DROP COLUMN IF EXISTS poultry_capacity;'; then
+          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$farms_migration" | grep -Ev 'DROP VIEW IF EXISTS midas\.farms;|ALTER TABLE farms DROP COLUMN IF EXISTS poultry_capacity;'; then
             echo "Unexpected destructive SQL in farms migration"
+            exit 1
+          fi
+          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$columns_migration" | grep -Ev 'DROP VIEW IF EXISTS midas\.(farms|state_goals);|ALTER TABLE (state_goals DROP COLUMN IF EXISTS id_farm|farms DROP COLUMN IF EXISTS place);'; then
+            echo "Unexpected destructive SQL in schema cleanup migration"
+            exit 1
+          fi
+          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$status_migration" | grep -Ev 'DROP VIEW IF EXISTS midas\.(state_goals|farm_goals);|ALTER TABLE state_goals DROP COLUMN IF EXISTS status;'; then
+            echo "Unexpected destructive SQL in goal status migration"
+            exit 1
+          fi
+          if grep -nEi '\b(DROP[[:space:]]+(DATABASE|TABLE|SCHEMA|VIEW)|DROP[[:space:]]+COLUMN)\b' "$timestamp_migration" | grep -Ev 'DROP VIEW IF EXISTS (chickens_per_liter|chickens_per_kwh|integrated_consumption);|DROP VIEW IF EXISTS midas\.(water_registries|energy_registries);'; then
+            echo "Unexpected destructive SQL in timestamp migration"
             exit 1
           fi

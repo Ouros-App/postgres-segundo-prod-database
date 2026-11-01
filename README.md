@@ -33,8 +33,133 @@ O executor também mantém a tabela `controle_scripts_sql`, com checksum, commit
 
 As tabelas usadas pelo banco analítico recebem `updated_at` automaticamente por
 `sql/atualiza_updated_at_analytics.sql`. O role `analytics_sync_ro` pode ler
-somente essas tabelas para alimentar o banco analítico; sua senha deve ser
-configurada fora do repositório.
+as tabelas autorizadas e as views analíticas descritas abaixo; sua senha deve
+ser configurada fora do repositório. As novas views não são expostas
+automaticamente ao role `midas_ro`.
+
+## Views analíticas
+
+`sql/views_analytics.sql` cria cinco views comuns no schema `public`:
+
+- `water_monthly`: uma linha por granja e mês com leituras de água; inclui consumo, acumulado anual e consumo do mês consecutivo anterior, quando disponível.
+- `energy_monthly`: os mesmos indicadores para energia.
+- `integrated_monthly`: uma linha por granja e mês em que água ou energia foi registrada; mantém o recurso ausente como `NULL`, informa flags de disponibilidade e calcula totais e participações por recurso.
+- `goals_progress`: uma linha para cada granja, inclusive sem metas; reproduz a pontuação de `calculate_goals_progress` e discrimina metas desconhecidas.
+- `payments_monthly`: uma linha por empresa e mês com pagamentos registrados, acumulado anual e comparação consecutiva.
+
+Exemplo de consulta para um dashboard por empresa:
+
+```sql
+SELECT
+    id_farm,
+    month,
+    water_consumed,
+    water_consumed_ytd,
+    previous_month_water_consumed
+FROM public.water_monthly
+WHERE id_enterprise = 42
+  AND month >= DATE '2025-01-01'
+  AND month < DATE '2026-01-01'
+ORDER BY month, id_farm;
+```
+
+Os meses são datas do primeiro dia do mês. As views mensais excluem o mês em
+andamento e registros futuros com base em `CURRENT_DATE` da sessão. Os
+timestamps são usados sem conversão de fuso; configure a timezone esperada pela
+organização na conexão do BI. Meses sem registros não criam linhas, então o
+acumulado soma apenas os valores registrados disponíveis. As colunas de
+comparação retornam `NULL` se faltar o mês imediatamente anterior ou se o
+valor anterior for zero.
+
+As funções de janela calculam os acumulados anuais e as comparações entre meses
+consecutivos. Como são calculadas na view, filtros externos por período preservam
+o acumulado anual desde o início do ano. Empresa e região são o cadastro atual
+da granja e podem reclassificar períodos históricos após uma alteração cadastral.
+
+Em `goals_progress`, metas concluídas pontuam 100, em andamento 50 e pendentes
+ou com status desconhecido 0. Uma meta compartilhada conta uma vez por granja
+vinculada. Sem metas, a view expõe `goals_count = 0` e `progress_pct = NULL`; a
+função existente `calculate_goals_progress` continua retornando zero nesse caso.
+`target_value` não é convertido em percentual de cumprimento,
+pois o esquema não registra a medida alcançada.
+
+`payments_value` é a soma de `payments.value` registrada, sem confirmação de
+liquidação. Água e energia permanecem indicadores separados; não há índice
+combinado nem divisão por `farms.chickens_now`, que representa o estoque atual.
+O role `analytics_sync_ro` tem leitura explícita nas cinco views. O script de
+permissões é executado depois delas e revoga acessos anteriores antes de
+reconceder a lista aprovada.
+
+## RPA de importação do banco pré
+
+O script `scripts/rpa_pre_novo.py` implementa a importação planejada do banco
+pré para o esquema atual do Ouros. Configure as variáveis `RPA_SOURCE_*` e
+`RPA_TARGET_*` no `.env`; mantenha credenciais fora do Git.
+`RPA_SOURCE_SYSTEM` identifica de forma estável a origem usada no mapa
+persistente de IDs.
+
+Antes da carga, rode diagnóstico, simulação e reconciliação pré-carga. Os
+relatórios JSON são compatíveis entre si e não incluem campos de negócio nem
+credenciais; os detalhes pendentes incluem os IDs legados para auditoria:
+
+```bash
+python scripts/rpa_pre_novo.py diagnose --report reports/rpa-pre-novo-diagnose.json
+python scripts/rpa_pre_novo.py simulate --report reports/rpa-pre-novo-simulation.json
+python scripts/rpa_pre_novo.py reconcile --before-load \
+  --simulation-report reports/rpa-pre-novo-simulation.json \
+  --report reports/rpa-pre-novo-reconciliation.json
+```
+
+`simulate` executa as mesmas regras da carga dentro de uma transação revertida,
+usa IDs temporários negativos e não avança as sequences do destino. Verifique
+os itens pendentes nos relatórios e confirme que as migrations aprovadas foram
+aplicadas no banco de destino. A carga real é separada e exige a confirmação
+literal do banco, além dos três relatórios:
+
+```bash
+python scripts/rpa_pre_novo.py load \
+  --confirm-load \
+  --expected-target-db NOME_EXATO_DO_BANCO \
+  --diagnostic-report reports/rpa-pre-novo-diagnose.json \
+  --simulation-report reports/rpa-pre-novo-simulation.json \
+  --reconciliation-report reports/rpa-pre-novo-reconciliation.json \
+  --report reports/rpa-pre-novo-load.json
+```
+
+A carga grava entidades e mapa de IDs na mesma transação; erro inesperado
+reverte tudo. Linhas rejeitadas por dados ou dependências ficam registradas
+como pendentes, sem interromper as outras linhas. Depois da carga, valide os
+mapas persistidos e os vínculos com:
+
+```bash
+python scripts/rpa_pre_novo.py reconcile --after-load \
+  --report reports/rpa-pre-novo-reconciliation-after.json
+```
+
+## Monitoramento DAU
+
+`sql/monitoramento_dau.sql` instala triggers de escrita nas tabelas do schema
+`public`. Cada `INSERT`, `UPDATE`, `DELETE` ou `TRUNCATE` registra o horário, a
+credencial PostgreSQL (`session_user`), o schema, a tabela e a ação na tabela
+`public.database_write_events`, consultável pela view
+`public.database_write_activity_log`. O log mantém no máximo 25.000 eventos;
+quando o limite é ultrapassado, os eventos mais antigos são removidos. A
+atividade diária continua deduplicada por credencial na tabela
+`public.database_role_daily_activity`; a data segue `America/Sao_Paulo`. Não é
+necessário chamar uma função pelo backend nem configurar uma senha específica
+para o monitoramento.
+
+Esta métrica conta credenciais do banco que fizeram operações de escrita, não
+contas individuais do aplicativo. `session_user` identifica a credencial usada
+para conectar ao PostgreSQL; quando o app compartilha uma credencial, não permite
+identificar qual pessoa do app fez a alteração. Cada registro representa um
+comando, não cada linha afetada; comandos que alterem zero linhas também são
+registrados. Operações feitas por outras ferramentas com credenciais diferentes
+também entram no log. As views `public.dau_daily`,
+`public.dau_daily_by_database_role` e `public.database_write_activity_log` podem
+ser lidas por `analytics_sync_ro`, sem acesso direto às tabelas de atividade. As
+views de DAU omitem dias sem registros; relatórios por intervalo devem gerar
+calendário e preencher esses dias com zero.
 
 ## Pré-requisitos
 
@@ -88,6 +213,47 @@ O executor aplica primeiro `sql/versionamento.sql`, depois processa os arquivos 
 
 No GitHub Actions, o workflow de aplicação instala as dependências e executa o mesmo comando usando os secrets correspondentes às variáveis `POSTGRES_*`.
 
+A migration `audience_engine_metadata.sql` cria apenas os ponteiros dos snapshots
+de audiência e os vínculos revisados entre dicas e audiências. Ela não cria
+contas de login. Antes de usar a aplicação, crie as contas separadas e aplique
+os grants: `audience_source` recebe `CONNECT`, `USAGE` em `public` e `SELECT`
+em `public.farms`, `public.farm_owners` e `public.water_registries`;
+`audience_metadata` recebe `CONNECT`, `USAGE` em `public`, `SELECT` em
+`public.tip_audience_refs` e `SELECT`, `INSERT` e `UPDATE` em
+`public.audience_snapshot_refs`.
+
+## Evolução diária do estoque de aves
+
+`sql/farm_chicken_stock_timeline.sql` cria a função de leitura
+`public.farm_chicken_stock_timeline(id_farm, start_date, starting_stock, until_date)`.
+Uma CTE recursiva calcula o saldo do próximo dia a partir do anterior, incluindo
+dias sem movimentos. O saldo inicial representa o fechamento de `start_date`;
+movimentos desse dia já devem estar incluídos nele.
+
+```sql
+SELECT *
+FROM public.farm_chicken_stock_timeline(
+    1, DATE '2026-10-01', 1000, DATE '2026-10-04'
+);
+```
+
+A primeira linha apresenta o saldo inicial e movimentos iguais a zero. As
+demais somam `lots.received_chickens` e descontam `lots.delivered_chickens`,
+`lots.losts` e saídas adicionais de `chicken_left`. Os movimentos de lotes são
+atribuídos a `delivery_date`, pois o modelo não possui uma data de recebimento.
+Lotes sem essa data ficam fora do cálculo. Essa convenção precisa corresponder
+ao uso dos dados; o resultado não reconstrói recebimentos ocorridos em outra
+data. Uma saída registrada em `chicken_left` não deve repetir uma perda já
+contabilizada no lote.
+
+Saldo negativo é apresentado para permitir a identificação de inconsistências.
+Fazenda inexistente, parâmetros nulos, saldo inicial negativo ou intervalo
+invertido retornam um conjunto vazio. A função usa as permissões do chamador,
+que precisa ter leitura de `farms`, `lots` e `chicken_left`. Ela calcula o saldo
+para o intervalo solicitado sem atualizar `farms.chickens_now`.
+
+Os testes desse cálculo são executados no PostgreSQL 16 pelo job de integração.
+
 ## Testes e qualidade
 
 Execute os testes existentes com:
@@ -109,6 +275,7 @@ O workflow `.github/workflows/ci-cd.yml` valida a presença do scaffold, executa
 │   └── apply_sql.py
 ├── sql/
 │   ├── banco_ouros_fisico.sql
+│   ├── monitoramento_dau.sql
 │   └── versionamento.sql
 └── tests/
     └── test_apply_sql.py
@@ -131,3 +298,16 @@ Este projeto está sob a licença MIT. Consulte o arquivo [LICENSE](LICENSE).
 <!-- CONTRIBUTORS:END -->
 
 > Atualizado automaticamente semanalmente pelo workflow de metadados do README.
+
+
+## Sincronização de estrutura e dados PostgreSQL
+
+O script `scripts/estrutura_banco.py` sincroniza tabelas e registros do banco de origem para o destino. Configure `BACKUP_SOURCE_HOST`, `BACKUP_SOURCE_PORT`, `BACKUP_SOURCE_DB`, `BACKUP_SOURCE_USER`, `BACKUP_SOURCE_PASSWORD` e as variáveis equivalentes `BACKUP_TARGET_*` no arquivo `.env`. O tamanho dos lotes vem de `BACKUP_FETCH_SIZE`. No GitHub Actions, cadastre essas mesmas variáveis em **Settings → Secrets and variables → Actions**; o runner não lê o `.env` local.
+
+Execute a partir da raiz do repositório:
+
+```bash
+python scripts/estrutura_banco.py --confirmar-destino
+```
+
+A carga atualiza e insere registros por chave primária. Tabelas sem chave primária são tratadas comparando a linha inteira para evitar duplicatas em execuções repetidas. O script preserva registros exclusivos do destino e não apaga registros removidos da origem. Cada execução também registra início, fim, status e linhas lidas em `public.backup_execution_log` no banco de destino.

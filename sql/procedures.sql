@@ -1,7 +1,10 @@
 DROP PROCEDURE IF EXISTS create_tip(TEXT, INTEGER, INTEGER);
+DROP PROCEDURE IF EXISTS create_tip(VARCHAR, TEXT, TEXT, INTEGER, INTEGER, INTEGER);
 
 CREATE OR REPLACE PROCEDURE create_tip(
+    IN p_title VARCHAR(200),
     IN p_tip TEXT,
+    IN p_foto_url TEXT,
     IN p_id_farm INTEGER,
     IN p_id_category INTEGER,
     INOUT p_tip_id INTEGER DEFAULT NULL
@@ -9,8 +12,8 @@ CREATE OR REPLACE PROCEDURE create_tip(
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    INSERT INTO tips (tip)
-    VALUES (p_tip)
+    INSERT INTO tips (title, tip, image_url, foto_url)
+    VALUES (p_title, p_tip, p_foto_url, p_foto_url)
     RETURNING id INTO p_tip_id;
 
     INSERT INTO farms_tips (id_farm, id_tip)
@@ -25,8 +28,22 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE PROCEDURE create_tip(
+    IN p_tip TEXT,
+    IN p_id_farm INTEGER,
+    IN p_id_category INTEGER,
+    INOUT p_tip_id INTEGER DEFAULT NULL
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    CALL create_tip('Dica Operacional', p_tip, NULL, p_id_farm, p_id_category, p_tip_id);
+END;
+$$;
+
 DROP PROCEDURE IF EXISTS create_state_goal(VARCHAR, TEXT, VARCHAR, VARCHAR, NUMERIC, TIMESTAMP, TIMESTAMP, INTEGER, INTEGER);
 
+-- p_status initializes only the farm-specific association when p_id_farm is provided.
 CREATE OR REPLACE PROCEDURE create_state_goal(
     IN p_title VARCHAR(50),
     IN p_description TEXT,
@@ -48,7 +65,6 @@ BEGIN
         title,
         description,
         type,
-        status,
         target_value,
         date_creation,
         date_end
@@ -57,7 +73,6 @@ BEGIN
         p_title,
         p_description,
         p_type,
-        p_status,
         p_target_value,
         p_date_creation,
         p_date_end
@@ -65,8 +80,8 @@ BEGIN
     RETURNING id INTO p_goal_id;
 
     IF p_id_farm IS NOT NULL THEN
-        INSERT INTO farm_goals (id_farm, id_goal)
-        VALUES (p_id_farm, p_goal_id)
+        INSERT INTO farm_goals (id_farm, id_goal, status)
+        VALUES (p_id_farm, p_goal_id, p_status)
         ON CONFLICT (id_farm, id_goal) DO NOTHING;
     END IF;
 

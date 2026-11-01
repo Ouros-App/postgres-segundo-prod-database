@@ -100,7 +100,6 @@ BEGIN
         name,
         area_property,
         region,
-        place,
         chickens_now,
         id_adress,
         id_enterprise
@@ -109,7 +108,6 @@ BEGIN
         farm_row.name,
         farm_row.area_property,
         farm_row.region,
-        farm_row.place,
         farm_row.chickens_now,
         farm_row.id_address,
         farm_row.id_enterprise

@@ -21,7 +21,6 @@ CREATE TABLE IF NOT EXISTS farms (
     name VARCHAR(100) NOT NULL CHECK(length(name) > 0),
     area_property NUMERIC NOT NULL CHECK(area_property > 0),
     region VARCHAR(50) NOT NULL CHECK(btrim(region) <> ''),
-    place VARCHAR(50) CHECK(length(place) > 0),
     chickens_now INTEGER NOT NULL DEFAULT 0
         CHECK (chickens_now >= 0),
     foto_url TEXT,
@@ -40,7 +39,11 @@ CREATE TABLE IF NOT EXISTS chicken_left (
 
 CREATE TABLE IF NOT EXISTS tips (
     id SERIAL PRIMARY KEY,
-    tip TEXT NOT NULL CHECK(length(tip) > 0)
+    title VARCHAR(200) NOT NULL DEFAULT 'Dica Operacional'
+        CHECK (btrim(title) <> ''),
+    tip TEXT NOT NULL CHECK(length(tip) > 0),
+    image_url TEXT,
+    foto_url TEXT
 );
 
 CREATE TABLE IF NOT EXISTS categories (
@@ -79,7 +82,7 @@ CREATE TABLE IF NOT EXISTS individual_goals (
 
 CREATE TABLE IF NOT EXISTS water_registries (
     id SERIAL PRIMARY KEY,
-    registration_date DATE NOT NULL,
+    registration_date TIMESTAMP NOT NULL,
     start_hydrometer NUMERIC NOT NULL CHECK(start_hydrometer > 0),
     end_hydrometer NUMERIC NOT NULL CHECK(end_hydrometer > 0),
     id_farm INTEGER REFERENCES farms(id) NOT NULL,
@@ -88,7 +91,7 @@ CREATE TABLE IF NOT EXISTS water_registries (
 
 CREATE TABLE IF NOT EXISTS energy_registries (
     id SERIAL PRIMARY KEY,
-    registration_date DATE NOT NULL,
+    registration_date TIMESTAMP NOT NULL,
     energy_consumption NUMERIC NOT NULL CHECK(energy_consumption > 0),
     id_farm INTEGER REFERENCES farms(id) NOT NULL
 );
@@ -97,7 +100,7 @@ CREATE TABLE IF NOT EXISTS lots (
     id SERIAL PRIMARY KEY,
     received_chickens INTEGER NOT NULL CHECK (received_chickens >= 0),
     delivered_chickens INTEGER NOT NULL CHECK (delivered_chickens >= 0),
-    delivery_date DATE NOT NULL,
+    delivery_date DATE,
     losts INTEGER NOT NULL DEFAULT 0 CHECK (losts >= 0),
     cost DOUBLE PRECISION NOT NULL DEFAULT 0 CHECK (cost >= 0),
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL,
@@ -110,27 +113,28 @@ CREATE TABLE IF NOT EXISTS company_employees (
     name VARCHAR(100) NOT NULL CHECK(length(name) > 0),
     document_number VARCHAR(11) UNIQUE NOT NULL CHECK (length(document_number) = 11),
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
-    telephone VARCHAR(13) NOT NULL CHECK(length(telephone) > 9),
+    telephone VARCHAR(13) CHECK(length(telephone) > 9),
     password TEXT CHECK(length(password) > 0),
+    photo_url VARCHAR(500),
     id_enterprise INTEGER REFERENCES enterprises(id) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS adms (
     id SERIAL PRIMARY KEY,
+    name VARCHAR(100) DEFAULT 'Administrador',
     email VARCHAR(50) NOT NULL CHECK(length(email) > 0),
-    password TEXT NOT NULL CHECK(length(password) > 0)
+    password TEXT NOT NULL CHECK(length(password) > 0),
+    photo_url VARCHAR(500)
 );
 
 CREATE TABLE IF NOT EXISTS state_goals (
     id SERIAL PRIMARY KEY,
     description TEXT,
     type VARCHAR(50) NOT NULL CHECK(length(type) > 0),
-    status VARCHAR(40) NOT NULL CHECK(length(status) > 0),
     target_value NUMERIC NOT NULL CHECK(target_value > 0),
     title VARCHAR(50) NOT NULL CHECK(length(title) > 0),
     date_creation TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     date_end TIMESTAMP,
-    id_farm INTEGER REFERENCES farms(id) NOT NULL,
     CHECK (date_end >= date_creation)
 );
 
@@ -144,6 +148,8 @@ CREATE TABLE IF NOT EXISTS farm_goals (
     id SERIAL PRIMARY KEY,
     id_farm INTEGER NOT NULL REFERENCES farms(id),
     id_goal INTEGER NOT NULL REFERENCES state_goals(id),
+    status VARCHAR(40) NOT NULL DEFAULT 'Pendente',
+    CONSTRAINT farm_goals_status_nonempty CHECK(length(status) > 0),
     UNIQUE (id_farm, id_goal)
 );
 
@@ -227,3 +233,74 @@ CREATE TABLE IF NOT EXISTS farms_log (
     id_adress INTEGER,
     id_enterprise INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS device_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL CHECK (user_id > 0),
+    user_role VARCHAR(50) NOT NULL CHECK (user_role IN ('FARM_OWNER', 'COMPANY_EMPLOYEE', 'ADM')),
+    token VARCHAR(500) NOT NULL CHECK (btrim(token) <> ''),
+    platform VARCHAR(20) NOT NULL CHECK (platform IN ('ANDROID', 'IOS', 'WEB')),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_device_tokens_token UNIQUE (token)
+);
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_user 
+    ON device_tokens (user_id, user_role);
+
+CREATE INDEX IF NOT EXISTS idx_device_tokens_role
+    ON device_tokens (user_role);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    event_id VARCHAR(255),
+    user_id INTEGER NOT NULL CHECK (user_id > 0),
+    user_role VARCHAR(50) NOT NULL CHECK (user_role IN ('FARM_OWNER', 'COMPANY_EMPLOYEE', 'ADM')),
+    title VARCHAR(150) NOT NULL CHECK (btrim(title) <> ''),
+    message TEXT NOT NULL CHECK (btrim(message) <> ''),
+    type VARCHAR(50) NOT NULL DEFAULT 'RANKING_UPDATED' CHECK (btrim(type) <> ''),
+    id_tip INTEGER REFERENCES tips(id) ON DELETE SET NULL,
+    data_payload TEXT,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP NULL,
+    CONSTRAINT chk_notifications_read_at CHECK (read_at IS NULL OR read_at >= created_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_lookup 
+    ON notifications (user_id, user_role, is_read, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_tip 
+    ON notifications (id_tip);
+
+CREATE TABLE IF NOT EXISTS public.backup_execution_log (
+    backup_id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+    source_database TEXT NOT NULL,
+    target_database TEXT NOT NULL,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    finished_at TIMESTAMPTZ,
+    status TEXT NOT NULL CHECK (status IN ('running', 'success', 'failed')),
+    rows_read BIGINT NOT NULL DEFAULT 0,
+    tables_processed INTEGER NOT NULL DEFAULT 0,
+    error_message TEXT
+);
+
+CREATE TABLE IF NOT EXISTS public.farm_simulations (
+    id BIGSERIAL PRIMARY KEY,
+    id_farm BIGINT NOT NULL,
+    id_enterprise BIGINT NOT NULL,
+    id_lot VARCHAR(50) NOT NULL,
+    current_cgi NUMERIC(8, 4) NOT NULL,
+    target_cgi NUMERIC(8, 4) NOT NULL,
+    water_price NUMERIC(10, 2) NOT NULL,
+    energy_price NUMERIC(10, 2) NOT NULL,
+    poultry_quantity INTEGER NOT NULL,
+    target_energy_kwh NUMERIC(8, 4) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_farm_simulations_farm FOREIGN KEY (id_farm) REFERENCES public.farms(id) ON DELETE CASCADE,
+    CONSTRAINT fk_farm_simulations_enterprise FOREIGN KEY (id_enterprise) REFERENCES public.enterprises(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_farm_simulations_enterprise ON public.farm_simulations(id_enterprise);
+CREATE INDEX IF NOT EXISTS idx_farm_simulations_farm ON public.farm_simulations(id_farm);
