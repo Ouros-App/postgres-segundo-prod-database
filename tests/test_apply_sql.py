@@ -143,6 +143,7 @@ class ApplySqlTest(unittest.TestCase):
                 ("atualiza_farms-chicken-left.sql", "once", False),
                 ("atualiza_farm-owners-campos-opcionais.sql", "once", False),
                 ("adiciona_notifications_event_id.sql", "once", False),
+                ("notifications_push_outbox.sql", "once", False),
                 ("adiciona_tips_title_foto_url.sql", "once", False),
                 ("atualiza_tips_estrutura_e_catalogo.sql", "once", False),
                 ("dataload_inicial.sql", "once", True),
