@@ -1,0 +1,64 @@
+name: RPA banco pré para novo diariamente
+
+on:
+  schedule:
+    - cron: "30 7 * * *"
+      timezone: "America/Sao_Paulo"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rpa-pre-novo
+  cancel-in-progress: false
+
+jobs:
+  importar:
+    name: Diagnosticar, simular e importar
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      RPA_SOURCE_HOST: ${{ secrets.RPA_SOURCE_HOST }}
+      RPA_SOURCE_PORT: ${{ secrets.RPA_SOURCE_PORT || '5432' }}
+      RPA_SOURCE_DB: ${{ secrets.RPA_SOURCE_DB }}
+      RPA_SOURCE_USER: ${{ secrets.RPA_SOURCE_USER }}
+      RPA_SOURCE_PASSWORD: ${{ secrets.RPA_SOURCE_PASSWORD }}
+      RPA_SOURCE_SCHEMA: public
+      RPA_SOURCE_SYSTEM: pre-novo
+      RPA_TARGET_HOST: ${{ secrets.RPA_TARGET_HOST }}
+      RPA_TARGET_PORT: ${{ secrets.RPA_TARGET_PORT || '5432' }}
+      RPA_TARGET_DB: ${{ secrets.RPA_TARGET_DB }}
+      RPA_TARGET_USER: ${{ secrets.RPA_TARGET_USER }}
+      RPA_TARGET_PASSWORD: ${{ secrets.RPA_TARGET_PASSWORD }}
+      RPA_TARGET_SCHEMA: public
+      RPA_FETCH_SIZE: "1000"
+      PGSSLMODE: require
+    steps:
+      - name: Baixar o repositório
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: python -m pip install -r requirements.txt
+
+      - name: Executar diagnóstico, simulação, carga e reconciliação
+        run: |
+          python scripts/rpa_pre_novo.py diagnose --report reports/rpa-pre-novo-diagnose.json
+          python scripts/rpa_pre_novo.py simulate --report reports/rpa-pre-novo-simulation.json
+          python scripts/rpa_pre_novo.py reconcile --before-load \
+            --simulation-report reports/rpa-pre-novo-simulation.json \
+            --report reports/rpa-pre-novo-reconciliation.json
+          python scripts/rpa_pre_novo.py load \
+            --confirm-load \
+            --expected-target-db "$RPA_TARGET_DB" \
+            --diagnostic-report reports/rpa-pre-novo-diagnose.json \
+            --simulation-report reports/rpa-pre-novo-simulation.json \
+            --reconciliation-report reports/rpa-pre-novo-reconciliation.json \
+            --report reports/rpa-pre-novo-load.json
+          python scripts/rpa_pre_novo.py reconcile --after-load \
+            --report reports/rpa-pre-novo-reconciliation-after.json

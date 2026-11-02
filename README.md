@@ -136,6 +136,12 @@ python scripts/rpa_pre_novo.py reconcile --after-load \
   --report reports/rpa-pre-novo-reconciliation-after.json
 ```
 
+### Execução diária no GitHub Actions
+
+O workflow [rpa-pre-novo-diario.yml](.github/workflows/rpa-pre-novo-diario.yml) executa o RPA todos os dias às 7h30 no fuso `America/Sao_Paulo` e também permite execução manual em **Actions**. Ele roda diagnóstico, simulação com rollback, reconciliação pré-carga, carga real e reconciliação pós-carga; uma falha nas validações interrompe a sequência antes da carga.
+
+Configure em **Settings → Secrets and variables → Actions** os secrets `RPA_SOURCE_HOST`, `RPA_SOURCE_DB`, `RPA_SOURCE_USER`, `RPA_SOURCE_PASSWORD`, `RPA_TARGET_HOST`, `RPA_TARGET_DB`, `RPA_TARGET_USER` e `RPA_TARGET_PASSWORD`. `RPA_SOURCE_PORT` e `RPA_TARGET_PORT` são opcionais e usam `5432` por padrão. O workflow usa o schema `public`, identifica a origem como `pre-novo` e exige SSL (`PGSSLMODE=require`). Ele lê as credenciais dos GitHub Actions Secrets, não do `.env` local. Os runners do GitHub precisam conseguir acessar os dois bancos.
+
 ## Monitoramento DAU
 
 `sql/monitoramento_dau.sql` instala triggers de escrita nas tabelas do schema
