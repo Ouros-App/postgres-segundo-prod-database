@@ -539,6 +539,10 @@ Relaciona uma role de banco de dados autorizada ao proprietário de fazenda que 
 - `notifications` aponta opcionalmente para uma dica (`tips.id`) e vincula-se polimorficamente a usuários por `(user_id, user_role)`.
 - `device_tokens` vincula-se a usuários por `(user_id, user_role)` e mantém unicidade de token para envio de notificações FCM.
 
+## Automação de importação
+
+- A carga RPA diária é orquestrada por [`rpa-pre-novo-diario.yml`](../.github/workflows/rpa-pre-novo-diario.yml), às 7h30 em `America/Sao_Paulo`; ela não altera as tabelas ou colunas descritas neste catálogo.
+
 ## Observações
 
 - A documentação é derivada dos scripts versionados no repositório. Migrações históricas podem conter diferenças temporárias de estrutura; a configuração atual e o DDL principal indicam o esquema esperado após a aplicação dos scripts.
